@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no">
-<title>AR PhotoFrame Final</title>
+<title>AR Photo Frame Auto</title>
 
-<script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 
 <style>
@@ -19,49 +18,38 @@ background:#000;
 font-family:sans-serif;
 }
 
-#app{
-position:fixed;
-inset:0;
-}
-
-#menu{
-position:fixed;
-inset:0;
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-gap:14px;
-background:#000;
-z-index:50;
-padding:20px;
-}
-
-#menu h1{
-color:#fff;
-font-size:28px;
-margin:0 0 15px 0;
-}
-
-#menu select,
-#menu button{
-width:260px;
-padding:14px;
-font-size:18px;
-border:none;
-border-radius:14px;
-}
-
-#menu button{
-background:#ff5ca9;
-color:#fff;
-font-weight:bold;
-}
-
 #ar-container{
 position:fixed;
 inset:0;
-display:none;
+width:100%;
+height:100%;
+}
+
+#title{
+position:fixed;
+top:10px;
+left:0;
+width:100%;
+text-align:center;
+color:#fff;
+font-size:20px;
+font-weight:bold;
+z-index:20;
+text-shadow:0 2px 8px rgba(0,0,0,.7);
+pointer-events:none;
+}
+
+#guide{
+position:fixed;
+top:40px;
+left:0;
+width:100%;
+text-align:center;
+color:#fff;
+font-size:14px;
+z-index:20;
+text-shadow:0 2px 8px rgba(0,0,0,.7);
+pointer-events:none;
 }
 
 #captureBtn{
@@ -70,27 +58,26 @@ bottom:24px;
 left:50%;
 transform:translateX(-50%);
 z-index:30;
-display:none;
 border:none;
 border-radius:16px;
-padding:16px 32px;
+padding:16px 34px;
 font-size:20px;
 font-weight:bold;
 background:#ff5ca9;
 color:#fff;
+box-shadow:0 8px 20px rgba(0,0,0,.28);
 }
 
-#guide{
+#loading{
 position:fixed;
-top:12px;
-left:0;
-width:100%;
-text-align:center;
+inset:0;
+background:#000;
+display:flex;
+align-items:center;
+justify-content:center;
 color:#fff;
+z-index:100;
 font-size:18px;
-z-index:30;
-display:none;
-text-shadow:0 2px 8px rgba(0,0,0,.7);
 }
 
 #flash{
@@ -99,90 +86,46 @@ inset:0;
 background:#fff;
 opacity:0;
 pointer-events:none;
-z-index:100;
+z-index:200;
 }
 </style>
 </head>
 
 <body>
 
-<div id="app"></div>
+<div id="ar-container"></div>
+<div id="loading">Opening Camera...</div>
 <div id="flash"></div>
 
-<div id="menu">
-<h1>AR Photo Frame</h1>
-
-<select id="charSelect">
-<option value="samurai">Samurai</option>
-<option value="ninja">Shadow Ninja</option>
-<option value="idol">Sakura Idol</option>
-<option value="mecha">Mecha Bot</option>
-<option value="kitsune">Kitsune Spirit</option>
-<option value="dragon">Dragon Knight</option>
-<option value="water">Water Mage</option>
-</select>
-
-<button id="startBtn">START</button>
-</div>
-
+<div id="title">AR Photo Frame</div>
 <div id="guide">マーカーをカメラに映してください</div>
-
-<div id="ar-container"></div>
 
 <button id="captureBtn">📸 撮影</button>
 
 <script>
 let renderer, scene, camera;
-let mindarThree;
-let framePlane;
+let frameMesh;
+let currentIndex = -1;
 
-const data = {
-samurai:{
-mind:"./samurai.mind",
-frame:"./samurai-frame1.png"
-},
-ninja:{
-mind:"./ninja.mind",
-frame:"./ninja-frame2.png"
-},
-idol:{
-mind:"./idol.mind",
-frame:"./idol-frame3.png"
-},
-mecha:{
-mind:"./mecha.mind",
-frame:"./mecha-frame4.png"
-},
-kitsune:{
-mind:"./kitsune.mind",
-frame:"./kitsune-frame5.png"
-},
-dragon:{
-mind:"./dragon.mind",
-frame:"./dragon-frame6.png"
-},
-water:{
-mind:"./water.mind",
-frame:"./water-frame7.png"
-}
-};
+const frames = [
+"./samurai-frame1.png",
+"./ninja-frame2.png",
+"./idol-frame3.png",
+"./mecha-frame4.png",
+"./kitsune-frame5.png",
+"./dragon-frame6.png",
+"./water-frame7.png"
+];
 
-document.getElementById("startBtn").addEventListener("click", startSystem);
-document.getElementById("captureBtn").addEventListener("click", takePhoto);
+window.addEventListener("load", startAR);
 
-async function startSystem(){
+async function startAR(){
 
-const key = document.getElementById("charSelect").value;
-const item = data[key];
+try{
 
-document.getElementById("menu").style.display="none";
-document.getElementById("ar-container").style.display="block";
-document.getElementById("guide").style.display="block";
-document.getElementById("captureBtn").style.display="block";
-
-mindarThree = new window.MINDAR.IMAGE.MindARThree({
+const mindarThree = new window.MINDAR.IMAGE.MindARThree({
 container: document.querySelector("#ar-container"),
-imageTargetSrc:item.mind,
+imageTargetSrc:"./targets.mind",
 uiScanning:false,
 uiLoading:false,
 uiError:false
@@ -199,32 +142,65 @@ renderer.setSize(window.innerWidth,window.innerHeight);
 const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1.2);
 scene.add(light);
 
-const tex = await new THREE.TextureLoader().loadAsync(item.frame);
-tex.encoding = THREE.sRGBEncoding;
-
-framePlane = new THREE.Mesh(
+frameMesh = new THREE.Mesh(
 new THREE.PlaneGeometry(1.7,3.0),
 new THREE.MeshBasicMaterial({
-map:tex,
 transparent:true,
 side:THREE.DoubleSide
 })
 );
 
-framePlane.position.set(0,0.7,0);
+scene.add(frameMesh);
+frameMesh.visible = false;
 
-const anchor = mindarThree.addAnchor(0);
-anchor.group.add(framePlane);
+for(let i=0;i<7;i++){
+
+const anchor = mindarThree.addAnchor(i);
+
+anchor.onTargetFound = async ()=>{
+
+currentIndex = i;
+await loadFrame(i);
+
+frameMesh.visible = true;
+frameMesh.position.copy(anchor.group.position);
+frameMesh.quaternion.copy(anchor.group.quaternion);
+
+};
+
+anchor.onTargetLost = ()=>{
+frameMesh.visible = false;
+};
+
+}
 
 await mindarThree.start();
 
+document.getElementById("loading").style.display="none";
+
 renderer.setAnimationLoop(()=>{
-if(framePlane){
-framePlane.lookAt(camera.position);
-}
+
 renderer.render(scene,camera);
+
 });
 
+}catch(err){
+
+console.error(err);
+document.getElementById("loading").innerHTML="Camera failed.";
+
+}
+
+}
+
+async function loadFrame(index){
+
+const loader = new THREE.TextureLoader();
+const tex = await loader.loadAsync(frames[index]);
+tex.encoding = THREE.sRGBEncoding;
+
+frameMesh.material.map = tex;
+frameMesh.material.needsUpdate = true;
 }
 
 function flashEffect(){
@@ -260,24 +236,13 @@ const ctx = output.getContext("2d");
 ctx.drawImage(video,0,0,output.width,output.height);
 ctx.drawImage(glCanvas,0,0,output.width,output.height);
 
-output.toBlob((blob)=>{
-
-const file = new File(
-[blob],
-"AR-Photo-"+Date.now()+".jpg",
-{type:"image/jpeg"}
-);
-
 const link = document.createElement("a");
-link.href = URL.createObjectURL(file);
-link.download = file.name;
+link.download = "AR-Photo-"+Date.now()+".jpg";
+link.href = output.toDataURL("image/jpeg",0.95);
 link.click();
-
-URL.revokeObjectURL(link.href);
-
-},"image/jpeg",0.95);
-
 }
+
+document.getElementById("captureBtn").addEventListener("click",takePhoto);
 
 window.addEventListener("resize",()=>{
 if(renderer){
