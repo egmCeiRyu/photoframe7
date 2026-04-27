@@ -9,6 +9,7 @@
 <style>
 :root {
   --accent: #4cc9f0;
+  --pink: #ff2e9a;
 }
 
 html, body {
@@ -26,7 +27,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 32px;
+  gap: 40px;
   background: rgba(0,0,0,0.75);
   z-index: 60;
 }
@@ -38,6 +39,7 @@ html, body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-align: center;
+  letter-spacing: 2px;
 }
 
 #homeSub {
@@ -45,6 +47,26 @@ html, body {
   max-width: 290px;
   text-align: center;
   opacity: 0.9;
+  line-height: 1.6;
+}
+
+/* Botão de Escaneamento - Mais bonito e letra maior */
+#scanBtn {
+  padding: 22px 60px;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(45deg, var(--pink), #9b4dff);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  box-shadow: 0 15px 40px rgba(255, 46, 154, 0.55);
+  letter-spacing: 2px;
+  transition: all 0.3s ease;
+}
+
+#scanBtn:active {
+  transform: scale(0.94);
+  box-shadow: 0 10px 30px rgba(255, 46, 154, 0.7);
 }
 
 /* Bottom Bar */
@@ -120,10 +142,12 @@ html, body {
 <div class="bottom-bar" id="bottomBar" style="display:none;">
   <div class="btn" id="returnBtn">
     <div class="btn-circle">↺</div>
+    <div>戻る</div>
   </div>
   
   <div class="btn" id="captureBtn">
     <div class="btn-circle">📸</div>
+    <div>撮影する</div>
   </div>
 </div>
 
@@ -298,7 +322,7 @@ async function cleanupSelfie(){
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- TAKE PHOTO ---------- */
+/* ---------- FOTO ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
@@ -321,7 +345,6 @@ async function takePhoto(){
     const blob = await fetch(dataUrl).then(r => r.blob());
     const file = new File([blob], fileName, { type: "image/jpeg" });
 
-    // Tenta abrir menu de salvar/compartilhar
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -338,12 +361,11 @@ async function takePhoto(){
 
   } catch(err){
     console.error(err);
-    // Fallback
     if (dataUrl) downloadFile(dataUrl, fileName || "photo.jpg");
   }
 }
 
-/* ---------- RETURN TO SCAN ---------- */
+/* ---------- 戻る ---------- */
 function returnToScan(){
   cleanupSelfie();
   showHome();
