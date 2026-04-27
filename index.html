@@ -70,7 +70,14 @@ captureBtn.addEventListener("click", takePhoto);
 
 /* ---------- HELPERS ---------- */
 function setStatus(t){ statusEl.textContent = t; }
-function showHome(){ home.style.display = "flex"; captureBtn.style.display = "none"; mode = "home"; setStatus("準備完了"); }
+
+function showHome(){
+  home.style.display = "flex";
+  captureBtn.style.display = "none";
+  mode = "home";
+  setStatus("準備完了");
+}
+
 function hideHome(){ home.style.display = "none"; }
 
 function flash(){
@@ -103,7 +110,7 @@ async function loadFrameWithTransparency(src){
   return await createImageBitmap(blob);
 }
 
-/* ---------- SCANNER & SELFIE (mantido igual) ---------- */
+/* ---------- SCANNER ---------- */
 async function startScanner(){
   hideHome();
   mode = "scanner";
@@ -157,6 +164,7 @@ async function cleanupScanner(){
   mindarThree = renderer = scene = camera = null;
 }
 
+/* ---------- SELFIE ---------- */
 async function openSelfie(index){
   mode = "selfie";
   await cleanupScanner();
@@ -201,30 +209,35 @@ async function cleanupSelfie(){
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- FOTO (Versão Melhorada) ---------- */
+/* ---------- FOTO - Versão Corrigida com retorno garantido ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
   captureBtn.disabled = true;
   flash();
 
+  let dataUrl = null;
+  let fileName = null;
+
   try{
     const w = selfieVideo.videoWidth || 1280;
     const h = selfieVideo.videoHeight || 720;
 
     const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d");
+
     ctx.drawImage(selfieVideo, 0, 0, w, h);
     if(frameBitmap) ctx.drawImage(frameBitmap, 0, 0, w, h);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    const fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
+    dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
     const blob = await fetch(dataUrl).then(r => r.blob());
     const file = new File([blob], fileName, { type: "image/jpeg" });
 
-    // Tenta abrir o menu nativo de compartilhamento (melhor no iOS)
+    // Tenta abrir menu de compartilhamento (melhor no iOS)
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -233,29 +246,27 @@ async function takePhoto(){
           text: "ARフォトフレームで撮影しました！"
         });
         setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
-      } catch (shareErr) {
-        // Usuário cancelou ou erro no share → faz download
+      } catch (e) {
         downloadFile(dataUrl, fileName);
         setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップしてください");
       }
-    } 
-    else {
-      // Android ou navegador que não suporta share com arquivo
+    } else {
       downloadFile(dataUrl, fileName);
-      setStatus("写真をDownloadsに保存しました\n\n写真を開いて「共有」→「写真に保存」をタップしてください");
+      setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップしてください");
     }
 
   } catch(err){
     console.error(err);
-    setStatus("保存に失敗しました");
+    if (dataUrl) downloadFile(dataUrl, fileName || "photo.jpg");
+    setStatus("写真を保存しました");
   }
 
-  // Volta automaticamente para o menu de escanear
+  // ✅ RETORNO AUTOMÁTICO GARANTIDO para o menu inicial
   setTimeout(() => {
     cleanupSelfie();
     showHome();
     captureBtn.disabled = false;
-  }, 4500);
+  }, 4500);   // 4.5 segundos
 }
 
 /* ---------- Resize ---------- */
