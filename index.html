@@ -8,8 +8,8 @@
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 <style>
 :root {
-  --accent: #4cc9f0;
   --pink: #ff2e9a;
+  --purple: #9b4dff;
 }
 
 html, body {
@@ -27,7 +27,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 40px;
+  gap: 45px;
   background: rgba(0,0,0,0.75);
   z-index: 60;
 }
@@ -39,7 +39,6 @@ html, body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-align: center;
-  letter-spacing: 2px;
 }
 
 #homeSub {
@@ -47,36 +46,41 @@ html, body {
   max-width: 290px;
   text-align: center;
   opacity: 0.9;
-  line-height: 1.6;
 }
 
-/* Botão de Escaneamento - Mais bonito e letra maior */
+/* Botão de Escanear com Pulsação */
 #scanBtn {
-  padding: 22px 60px;
-  font-size: 24px;
+  padding: 20px 65px;
+  font-size: 23px;
   font-weight: 700;
-  background: linear-gradient(45deg, var(--pink), #9b4dff);
+  background: linear-gradient(45deg, var(--pink), var(--purple));
   color: white;
   border: none;
-  border-radius: 50px;
-  box-shadow: 0 15px 40px rgba(255, 46, 154, 0.55);
+  border-radius: 60px;
+  box-shadow: 0 15px 40px rgba(255, 46, 154, 0.6);
   letter-spacing: 2px;
   transition: all 0.3s ease;
+  animation: pulse 2s infinite ease-in-out;
 }
 
 #scanBtn:active {
-  transform: scale(0.94);
-  box-shadow: 0 10px 30px rgba(255, 46, 154, 0.7);
+  transform: scale(0.95);
+  animation: none;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
 }
 
 /* Bottom Bar */
 .bottom-bar {
   position: fixed;
-  bottom: 35px;
+  bottom: 40px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 70px;
+  gap: 65px;
   z-index: 90;
   align-items: center;
 }
@@ -90,7 +94,6 @@ html, body {
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
-  user-select: none;
 }
 
 .btn:active { transform: scale(0.92); }
@@ -109,12 +112,12 @@ html, body {
 }
 
 #captureBtn .btn-circle {
-  width: 82px;
-  height: 82px;
-  background: var(--accent);
+  width: 80px;
+  height: 80px;
+  background: #4cc9f0;
   border: none;
   box-shadow: 0 0 35px rgba(76, 201, 240, 0.85);
-  font-size: 38px;
+  font-size: 36px;
 }
 
 /* Flash */
@@ -125,7 +128,6 @@ html, body {
   opacity: 0;
   pointer-events: none;
   z-index: 100;
-  transition: opacity 0.35s ease;
 }
 </style>
 </head>
@@ -138,7 +140,6 @@ html, body {
   <button id="scanBtn">ARマーカーをスキャン</button>
 </div>
 
-<!-- Bottom Bar -->
 <div class="bottom-bar" id="bottomBar" style="display:none;">
   <div class="btn" id="returnBtn">
     <div class="btn-circle">↺</div>
@@ -347,31 +348,23 @@ async function takePhoto(){
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({
-          files: [file],
-          title: DATA[currentIndex].name,
-          text: "ARフォトフレームで撮影しました"
-        });
+        await navigator.share({ files: [file], title: DATA[currentIndex].name });
       } catch (e) {
         downloadFile(dataUrl, fileName);
       }
     } else {
       downloadFile(dataUrl, fileName);
     }
-
   } catch(err){
     console.error(err);
-    if (dataUrl) downloadFile(dataUrl, fileName || "photo.jpg");
   }
 }
 
-/* ---------- 戻る ---------- */
 function returnToScan(){
   cleanupSelfie();
   showHome();
 }
 
-/* ---------- Resize ---------- */
 window.addEventListener("resize", () => {
   if(renderer) renderer.setSize(innerWidth, innerHeight);
 });
