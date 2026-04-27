@@ -110,7 +110,7 @@ async function loadFrameWithTransparency(src){
   return await createImageBitmap(blob);
 }
 
-/* ---------- SCANNER ---------- */
+/* ---------- SCANNER & SELFIE (mantido) ---------- */
 async function startScanner(){
   hideHome();
   mode = "scanner";
@@ -164,7 +164,6 @@ async function cleanupScanner(){
   mindarThree = renderer = scene = camera = null;
 }
 
-/* ---------- SELFIE ---------- */
 async function openSelfie(index){
   mode = "selfie";
   await cleanupScanner();
@@ -209,15 +208,12 @@ async function cleanupSelfie(){
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- FOTO - Versão Corrigida com retorno garantido ---------- */
+/* ---------- FOTO - Com delay reduzido ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
   captureBtn.disabled = true;
   flash();
-
-  let dataUrl = null;
-  let fileName = null;
 
   try{
     const w = selfieVideo.videoWidth || 1280;
@@ -231,13 +227,12 @@ async function takePhoto(){
     ctx.drawImage(selfieVideo, 0, 0, w, h);
     if(frameBitmap) ctx.drawImage(frameBitmap, 0, 0, w, h);
 
-    dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
     const blob = await fetch(dataUrl).then(r => r.blob());
     const file = new File([blob], fileName, { type: "image/jpeg" });
 
-    // Tenta abrir menu de compartilhamento (melhor no iOS)
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
@@ -257,16 +252,15 @@ async function takePhoto(){
 
   } catch(err){
     console.error(err);
-    if (dataUrl) downloadFile(dataUrl, fileName || "photo.jpg");
     setStatus("写真を保存しました");
   }
 
-  // ✅ RETORNO AUTOMÁTICO GARANTIDO para o menu inicial
+  // ←←← DELAY REDUZIDO (2.5 segundos)
   setTimeout(() => {
     cleanupSelfie();
     showHome();
     captureBtn.disabled = false;
-  }, 4500);   // 4.5 segundos
+  }, 2500);
 }
 
 /* ---------- Resize ---------- */
