@@ -30,15 +30,10 @@ text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;
 #status{
 position:fixed;top:46px;left:0;width:100%;text-align:center;color:#fff;font-size:14px;z-index:30;
 text-shadow:0 2px 8px rgba(0,0,0,.7);padding:0 12px;box-sizing:border-box;pointer-events:none;
-white-space: pre-line; line-height:1.4;
+white-space: pre-line; line-height:1.45;
 }
 #flash{
 position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;
-}
-#shareBtn{
-position:fixed;bottom:100px;left:50%;transform:translateX(-50%);z-index:90;
-padding:14px 28px;font-size:17px;font-weight:600;background:#34c759;color:#fff;
-border:none;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none;
 }
 </style>
 </head>
@@ -54,7 +49,6 @@ border:none;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none
 </div>
 
 <button id="captureBtn">📸 撮影</button>
-<button id="shareBtn">📤 もう一度共有する</button>
 <div id="flash"></div>
 
 <script>
@@ -76,7 +70,6 @@ const statusEl = document.getElementById("status");
 const home = document.getElementById("home");
 const scanBtn = document.getElementById("scanBtn");
 const captureBtn = document.getElementById("captureBtn");
-const shareBtn = document.getElementById("shareBtn");
 
 let mode = "home";
 let busy = false;
@@ -89,12 +82,9 @@ let selfieStream = null;
 let selfieVideo = null;
 let frameOverlay = null;
 let frameBitmap = null;
-let lastDataUrl = null;
-let lastFileName = null;
 
 scanBtn.addEventListener("click", startScanner);
 captureBtn.addEventListener("click", takePhoto);
-shareBtn.addEventListener("click", shareLastPhoto);
 
 /* ---------- HELPERS ---------- */
 function setStatus(t){ statusEl.textContent = t; }
@@ -102,7 +92,6 @@ function setStatus(t){ statusEl.textContent = t; }
 function showHome(){
   home.style.display = "flex";
   captureBtn.style.display = "none";
-  shareBtn.style.display = "none";
   mode = "home";
   setStatus("準備完了");
 }
@@ -234,12 +223,9 @@ async function openSelfie(index){
 
 async function cleanupSelfie(){
   captureBtn.style.display = "none";
-  shareBtn.style.display = "none";
   if(selfieVideo) try{selfieVideo.pause();}catch(e){}
   await stopTracks(selfieStream);
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
-  lastDataUrl = null;
-  lastFileName = null;
 }
 
 /* ---------- FOTO ---------- */
@@ -261,51 +247,24 @@ async function takePhoto(){
     ctx.drawImage(selfieVideo, 0, 0, w, h);
     if(frameBitmap) ctx.drawImage(frameBitmap, 0, 0, w, h);
 
-    lastDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    lastFileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    const fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
-    const blob = await fetch(lastDataUrl).then(r => r.blob());
-    const file = new File([blob], lastFileName, { type: "image/jpeg" });
+    downloadFile(dataUrl, fileName);
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: DATA[currentIndex].name,
-        text: "ARフォトフレームで撮影しました！"
-      });
-      setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
-    } else {
-      downloadFile(lastDataUrl, lastFileName);
-      setStatus("写真をDownloadsに保存しました\n\n写真を開いて「共有」→「写真に保存」をタップしてください");
-    }
-
-    shareBtn.style.display = "block";
+    setStatus("✅ 写真を保存しました！\n\nDownloadsフォルダを開いて\n写真を長押し → 「写真に保存」をタップしてください");
 
   } catch(err){
     console.error(err);
-    if(lastDataUrl) downloadFile(lastDataUrl, lastFileName);
-    setStatus("写真を保存しました\nDownloadsから「写真に保存」してください");
-    shareBtn.style.display = "block";
+    setStatus("保存に失敗しました");
   }
 
-  // ←←← VOLTA AUTOMATICAMENTE PARA O MENU DE ESCANEAR ←←←
+  // Volta automaticamente para o menu inicial após 4.5 segundos
   setTimeout(() => {
     cleanupSelfie();
     showHome();
     captureBtn.disabled = false;
-  }, 5000);   // 5 segundos (pode mudar para 4000 ou 6000 se quiser)
-}
-
-/* ---------- Compartilhar novamente ---------- */
-async function shareLastPhoto(){
-  if(!lastDataUrl) return;
-  try{
-    const blob = await fetch(lastDataUrl).then(r => r.blob());
-    const file = new File([blob], lastFileName, { type: "image/jpeg" });
-    await navigator.share({ files: [file], title: DATA[currentIndex]?.name || "AR Photo" });
-  } catch(e){
-    if(lastDataUrl) downloadFile(lastDataUrl, lastFileName);
-  }
+  }, 4500);
 }
 
 /* ---------- Resize ---------- */
