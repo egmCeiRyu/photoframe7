@@ -27,6 +27,57 @@ height:100%;
 background:#000;
 }
 
+#home{
+position:fixed;
+inset:0;
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+gap:18px;
+background:#000;
+z-index:60;
+padding:24px;
+box-sizing:border-box;
+}
+
+#homeTitle{
+color:#fff;
+font-size:30px;
+font-weight:700;
+text-align:center;
+}
+
+#homeSub{
+color:#fff;
+font-size:15px;
+text-align:center;
+opacity:.9;
+max-width:320px;
+line-height:1.45;
+}
+
+#scanBtn,
+#captureBtn{
+border:none;
+border-radius:18px;
+padding:16px 28px;
+font-size:20px;
+font-weight:700;
+background:#ff5ca9;
+color:#fff;
+box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+
+#captureBtn{
+position:fixed;
+bottom:24px;
+left:50%;
+transform:translateX(-50%);
+z-index:50;
+display:none;
+}
+
 #title{
 position:fixed;
 top:12px;
@@ -56,23 +107,6 @@ box-sizing:border-box;
 pointer-events:none;
 }
 
-#captureBtn{
-position:fixed;
-bottom:24px;
-left:50%;
-transform:translateX(-50%);
-z-index:40;
-border:none;
-border-radius:16px;
-padding:16px 28px;
-font-size:20px;
-font-weight:700;
-background:#ff5ca9;
-color:#fff;
-box-shadow:0 8px 24px rgba(0,0,0,.25);
-display:none;
-}
-
 #flash{
 position:fixed;
 inset:0;
@@ -89,7 +123,13 @@ z-index:100;
 <div id="ar-container"></div>
 
 <div id="title">AR Photo Frame</div>
-<div id="status">Opening camera...</div>
+<div id="status">Ready</div>
+
+<div id="home">
+<div id="homeTitle">AR Photo Frame</div>
+<div id="homeSub">Tap the button below and scan the AR marker to start.</div>
+<button id="scanBtn">SCAN THE AR MARKER</button>
+</div>
 
 <button id="captureBtn">📸 PHOTO</button>
 
@@ -113,8 +153,10 @@ const TARGETS_FILE = "./targets.mind";
 const container = document.getElementById("ar-container");
 const statusEl = document.getElementById("status");
 const captureBtn = document.getElementById("captureBtn");
+const scanBtn = document.getElementById("scanBtn");
+const home = document.getElementById("home");
 
-let mode = "scanner";
+let mode = "home";
 let busy = false;
 let currentIndex = -1;
 
@@ -127,7 +169,7 @@ let selfieStream = null;
 let selfieVideo = null;
 let frameOverlay = null;
 
-window.addEventListener("load", startScanner);
+scanBtn.addEventListener("click", startScanner);
 captureBtn.addEventListener("click", takePhoto);
 
 /* ---------- HELPERS ---------- */
@@ -140,7 +182,6 @@ function flash(){
 const el = document.getElementById("flash");
 el.style.transition = "none";
 el.style.opacity = "0.95";
-
 setTimeout(()=>{
 el.style.transition = "opacity .35s ease";
 el.style.opacity = "0";
@@ -149,6 +190,17 @@ el.style.opacity = "0";
 
 function clearContainer(){
 container.innerHTML = "";
+}
+
+function showHome(){
+home.style.display = "flex";
+captureBtn.style.display = "none";
+setStatus("Ready");
+mode = "home";
+}
+
+function hideHome(){
+home.style.display = "none";
 }
 
 async function stopTracks(stream){
@@ -169,6 +221,8 @@ link.remove();
 /* ---------- SCANNER ---------- */
 
 async function startScanner(){
+
+hideHome();
 
 mode = "scanner";
 busy = false;
@@ -236,7 +290,8 @@ setStatus("Point camera to marker");
 }catch(err){
 
 console.error(err);
-setStatus("Camera failed. Check HTTPS / permission");
+setStatus("Camera failed");
+showHome();
 
 }
 }
@@ -268,7 +323,6 @@ async function openSelfie(index){
 mode = "selfie";
 
 await cleanupScanner();
-
 clearContainer();
 
 try{
@@ -306,6 +360,11 @@ await selfieVideo.play();
 frameOverlay = document.createElement("img");
 frameOverlay.src = DATA[index].frame;
 
+/* force alpha transparency correctly */
+frameOverlay.onload = ()=>{
+frameOverlay.style.opacity = "1";
+};
+
 Object.assign(frameOverlay.style,{
 position:"fixed",
 top:"0",
@@ -314,23 +373,22 @@ width:"100vw",
 height:"100dvh",
 objectFit:"fill",
 pointerEvents:"none",
-zIndex:"20"
+zIndex:"20",
+background:"transparent",
+mixBlendMode:"normal",
+imageRendering:"auto"
 });
 
 container.appendChild(frameOverlay);
 
 captureBtn.style.display = "block";
-
 setStatus("Selfie mode ready");
 
 }catch(err){
 
 console.error(err);
 setStatus("Selfie camera failed");
-
-setTimeout(()=>{
-startScanner();
-},1000);
+showHome();
 
 }
 }
@@ -340,15 +398,17 @@ async function cleanupSelfie(){
 captureBtn.style.display = "none";
 
 if(selfieVideo){
-try{
-selfieVideo.pause();
-}catch(e){}
+try{ selfieVideo.pause(); }catch(e){}
 }
 
 await stopTracks(selfieStream);
 
 selfieStream = null;
 selfieVideo = null;
+
+if(frameOverlay){
+frameOverlay.remove();
+}
 frameOverlay = null;
 }
 
@@ -374,6 +434,7 @@ canvas.height = h;
 
 const ctx = canvas.getContext("2d");
 
+ctx.clearRect(0,0,w,h);
 ctx.drawImage(selfieVideo,0,0,w,h);
 
 if(frameOverlay){
@@ -387,7 +448,7 @@ DATA[currentIndex].name + "-" + Date.now() + ".jpg";
 
 downloadFile(dataUrl,fileName);
 
-setStatus("Saved! Restarting...");
+setStatus("Saved!");
 
 }catch(err){
 
@@ -396,10 +457,11 @@ setStatus("Save failed");
 
 }
 
-setTimeout(()=>{
+setTimeout(async ()=>{
 captureBtn.disabled = false;
-startScanner();
-},1200);
+await cleanupSelfie();
+showHome();
+},900);
 
 }
 
