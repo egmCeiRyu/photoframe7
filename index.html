@@ -37,8 +37,8 @@ color:#fff;
 font-size:22px;
 font-weight:700;
 z-index:30;
-pointer-events:none;
 text-shadow:0 2px 8px rgba(0,0,0,.7);
+pointer-events:none;
 }
 
 #status{
@@ -50,10 +50,10 @@ text-align:center;
 color:#fff;
 font-size:14px;
 z-index:30;
-pointer-events:none;
 text-shadow:0 2px 8px rgba(0,0,0,.7);
 padding:0 12px;
 box-sizing:border-box;
+pointer-events:none;
 }
 
 #captureBtn{
@@ -97,15 +97,16 @@ z-index:100;
 
 <script>
 /* ---------- CONFIG ---------- */
-const FRAMES = [
-"./samurai-frame1.png",
-"./ninja-frame2.png",
-"./idol-frame3.png",
-"./mecha-frame4.png",
-"./kitsune-frame5.png",
-"./dragon-frame6.png",
-"./water-frame7.png"
+const DATA = [
+{frame:"./samurai-frame1.png", name:"Samurai"},
+{frame:"./ninja-frame2.png", name:"Shadow-Ninja"},
+{frame:"./idol-frame3.png", name:"Sakura-Idol"},
+{frame:"./mecha-frame4.png", name:"Mecha-Bot"},
+{frame:"./kitsune-frame5.png", name:"Kitsune-Spirit"},
+{frame:"./dragon-frame6.png", name:"Dragon-Knight"},
+{frame:"./water-frame7.png", name:"Water-Mage"}
 ];
+
 const TARGETS_FILE = "./targets.mind";
 /* ---------------------------- */
 
@@ -113,25 +114,23 @@ const container = document.getElementById("ar-container");
 const statusEl = document.getElementById("status");
 const captureBtn = document.getElementById("captureBtn");
 
-let mode = "scanner"; // scanner | selfie
+let mode = "scanner";
 let busy = false;
+let currentIndex = -1;
 
 let mindarThree = null;
 let renderer = null;
 let scene = null;
 let camera = null;
 
-let currentIndex = -1;
-
 let selfieStream = null;
 let selfieVideo = null;
 let frameOverlay = null;
 
-/* start automatically */
-window.addEventListener("load", initApp);
+window.addEventListener("load", startScanner);
 captureBtn.addEventListener("click", takePhoto);
 
-/* ---------- helpers ---------- */
+/* ---------- HELPERS ---------- */
 
 function setStatus(txt){
 statusEl.textContent = txt;
@@ -148,32 +147,33 @@ el.style.opacity = "0";
 },40);
 }
 
-function isIOS(){
-return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-async function stopMedia(stream){
-if(!stream) return;
-stream.getTracks().forEach(t=>t.stop());
-}
-
 function clearContainer(){
 container.innerHTML = "";
 }
 
-/* ---------- app ---------- */
-
-async function initApp(){
-await startScanner();
+async function stopTracks(stream){
+if(stream){
+stream.getTracks().forEach(track=>track.stop());
+}
 }
 
-/* ---------- scanner ---------- */
+function downloadFile(dataUrl,fileName){
+const link = document.createElement("a");
+link.href = dataUrl;
+link.download = fileName;
+document.body.appendChild(link);
+link.click();
+link.remove();
+}
+
+/* ---------- SCANNER ---------- */
 
 async function startScanner(){
 
-busy = false;
 mode = "scanner";
+busy = false;
 currentIndex = -1;
+
 captureBtn.style.display = "none";
 
 await cleanupSelfie();
@@ -188,10 +188,10 @@ setStatus("Opening rear camera...");
 mindarThree = new window.MINDAR.IMAGE.MindARThree({
 container: container,
 imageTargetSrc: TARGETS_FILE,
-uiScanning: false,
-uiLoading: false,
-uiError: false,
-maxTrack: 1
+uiScanning:false,
+uiLoading:false,
+uiError:false,
+maxTrack:1
 });
 
 renderer = mindarThree.renderer;
@@ -200,7 +200,7 @@ camera = mindarThree.camera;
 
 renderer.preserveDrawingBuffer = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth,window.innerHeight);
 
 const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1.15);
 scene.add(light);
@@ -209,7 +209,7 @@ for(let i=0;i<7;i++){
 
 const anchor = mindarThree.addAnchor(i);
 
-anchor.onTargetFound = async ()=>{
+anchor.onTargetFound = ()=>{
 
 if(mode !== "scanner") return;
 if(busy) return;
@@ -220,6 +220,7 @@ currentIndex = i;
 setTimeout(()=>{
 openSelfie(i);
 },250);
+
 };
 
 }
@@ -227,9 +228,7 @@ openSelfie(i);
 await mindarThree.start();
 
 renderer.setAnimationLoop(()=>{
-if(renderer && scene && camera){
 renderer.render(scene,camera);
-}
 });
 
 setStatus("Point camera to marker");
@@ -237,7 +236,7 @@ setStatus("Point camera to marker");
 }catch(err){
 
 console.error(err);
-setStatus("Camera failed. Check HTTPS / permission.");
+setStatus("Camera failed. Check HTTPS / permission");
 
 }
 }
@@ -262,13 +261,14 @@ scene = null;
 camera = null;
 }
 
-/* ---------- selfie ---------- */
+/* ---------- SELFIE ---------- */
 
 async function openSelfie(index){
 
 mode = "selfie";
 
 await cleanupScanner();
+
 clearContainer();
 
 try{
@@ -292,9 +292,10 @@ selfieVideo.srcObject = selfieStream;
 
 Object.assign(selfieVideo.style,{
 position:"fixed",
-inset:"0",
-width:"100%",
-height:"100%",
+top:"0",
+left:"0",
+width:"100vw",
+height:"100dvh",
 objectFit:"cover"
 });
 
@@ -303,27 +304,33 @@ container.appendChild(selfieVideo);
 await selfieVideo.play();
 
 frameOverlay = document.createElement("img");
-frameOverlay.src = FRAMES[index];
+frameOverlay.src = DATA[index].frame;
 
 Object.assign(frameOverlay.style,{
 position:"fixed",
-inset:"0",
-width:"100%",
-height:"100%",
-objectFit:"cover",
-pointerEvents:"none"
+top:"0",
+left:"0",
+width:"100vw",
+height:"100dvh",
+objectFit:"fill",
+pointerEvents:"none",
+zIndex:"20"
 });
 
 container.appendChild(frameOverlay);
 
 captureBtn.style.display = "block";
+
 setStatus("Selfie mode ready");
 
 }catch(err){
 
 console.error(err);
 setStatus("Selfie camera failed");
-setTimeout(startScanner,1000);
+
+setTimeout(()=>{
+startScanner();
+},1000);
 
 }
 }
@@ -333,17 +340,19 @@ async function cleanupSelfie(){
 captureBtn.style.display = "none";
 
 if(selfieVideo){
-try{ selfieVideo.pause(); }catch(e){}
+try{
+selfieVideo.pause();
+}catch(e){}
 }
 
-await stopMedia(selfieStream);
+await stopTracks(selfieStream);
 
 selfieStream = null;
 selfieVideo = null;
 frameOverlay = null;
 }
 
-/* ---------- photo ---------- */
+/* ---------- PHOTO ---------- */
 
 async function takePhoto(){
 
@@ -373,14 +382,10 @@ ctx.drawImage(frameOverlay,0,0,w,h);
 
 const dataUrl = canvas.toDataURL("image/jpeg",0.95);
 
-if(isIOS()){
-window.open(dataUrl,"_blank");
-}else{
-const link = document.createElement("a");
-link.href = dataUrl;
-link.download = "AR-Photo-" + Date.now() + ".jpg";
-link.click();
-}
+const fileName =
+DATA[currentIndex].name + "-" + Date.now() + ".jpg";
+
+downloadFile(dataUrl,fileName);
 
 setStatus("Saved! Restarting...");
 
@@ -391,14 +396,14 @@ setStatus("Save failed");
 
 }
 
-setTimeout(async ()=>{
+setTimeout(()=>{
 captureBtn.disabled = false;
-await startScanner();
+startScanner();
 },1200);
 
 }
 
-/* ---------- resize ---------- */
+/* ---------- RESIZE ---------- */
 
 window.addEventListener("resize",()=>{
 if(renderer){
