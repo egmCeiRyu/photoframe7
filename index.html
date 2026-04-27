@@ -70,21 +70,19 @@ captureBtn.addEventListener("click", takePhoto);
 
 /* ---------- HELPERS ---------- */
 function setStatus(t){ statusEl.textContent = t; }
-
 function showHome(){
   home.style.display = "flex";
   captureBtn.style.display = "none";
   mode = "home";
   setStatus("準備完了");
 }
-
 function hideHome(){ home.style.display = "none"; }
 
 function flash(){
   const el = document.getElementById("flash");
   el.style.transition = "none";
   el.style.opacity = "0.95";
-  setTimeout(() => { el.style.transition = "opacity .35s ease"; el.style.opacity = "0"; }, 40);
+  setTimeout(() => { el.style.transition = "opacity .35s ease"; el.style.opacity = "0"; }, 30);
 }
 
 function clearContainer(){ container.innerHTML = ""; }
@@ -110,7 +108,7 @@ async function loadFrameWithTransparency(src){
   return await createImageBitmap(blob);
 }
 
-/* ---------- SCANNER & SELFIE (mantido) ---------- */
+/* ---------- SCANNER & SELFIE ---------- */
 async function startScanner(){
   hideHome();
   mode = "scanner";
@@ -208,7 +206,7 @@ async function cleanupSelfie(){
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- FOTO - Com delay reduzido ---------- */
+/* ---------- FOTO - Delay mínimo ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
@@ -220,8 +218,7 @@ async function takePhoto(){
     const h = selfieVideo.videoHeight || 720;
 
     const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
 
     ctx.drawImage(selfieVideo, 0, 0, w, h);
@@ -255,12 +252,12 @@ async function takePhoto(){
     setStatus("写真を保存しました");
   }
 
-  // ←←← DELAY REDUZIDO (2.5 segundos)
+  // Delay mínimo (1.8 segundos) - o mais rápido possível sem quebrar a experiência
   setTimeout(() => {
     cleanupSelfie();
     showHome();
     captureBtn.disabled = false;
-  }, 2500);
+  }, 1800);
 }
 
 /* ---------- Resize ---------- */
