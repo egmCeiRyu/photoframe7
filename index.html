@@ -30,7 +30,7 @@ text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;
 #status{
 position:fixed;top:46px;left:0;width:100%;text-align:center;color:#fff;font-size:14px;z-index:30;
 text-shadow:0 2px 8px rgba(0,0,0,.7);padding:0 12px;box-sizing:border-box;pointer-events:none;
-white-space: pre-line;line-height:1.4;
+white-space: pre-line; line-height:1.4;
 }
 #flash{
 position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;
@@ -171,8 +171,7 @@ async function startScanner(){
     for(let i = 0; i < 7; i++){
       const anchor = mindarThree.addAnchor(i);
       anchor.onTargetFound = () => {
-        if(mode !== "scanner") return;
-        if(busy) return;
+        if(mode !== "scanner" || busy) return;
         busy = true;
         currentIndex = i;
         setTimeout(() => openSelfie(i), 220);
@@ -239,6 +238,8 @@ async function cleanupSelfie(){
   if(selfieVideo) try{selfieVideo.pause();}catch(e){}
   await stopTracks(selfieStream);
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
+  lastDataUrl = null;
+  lastFileName = null;
 }
 
 /* ---------- FOTO ---------- */
@@ -253,8 +254,10 @@ async function takePhoto(){
     const h = selfieVideo.videoHeight || 720;
 
     const canvas = document.createElement("canvas");
-    canvas.width = w; canvas.height = h;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d");
+
     ctx.drawImage(selfieVideo, 0, 0, w, h);
     if(frameBitmap) ctx.drawImage(frameBitmap, 0, 0, w, h);
 
@@ -273,7 +276,7 @@ async function takePhoto(){
       setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
     } else {
       downloadFile(lastDataUrl, lastFileName);
-      setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップ");
+      setStatus("写真をDownloadsに保存しました\n\n写真を開いて「共有」→「写真に保存」をタップしてください");
     }
 
     shareBtn.style.display = "block";
@@ -285,12 +288,12 @@ async function takePhoto(){
     shareBtn.style.display = "block";
   }
 
-  // Volta automaticamente para o menu de escanear após 4 segundos
+  // ←←← VOLTA AUTOMATICAMENTE PARA O MENU DE ESCANEAR ←←←
   setTimeout(() => {
     cleanupSelfie();
     showHome();
     captureBtn.disabled = false;
-  }, 4500);
+  }, 5000);   // 5 segundos (pode mudar para 4000 ou 6000 se quiser)
 }
 
 /* ---------- Compartilhar novamente ---------- */
