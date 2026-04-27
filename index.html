@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no">
-<title>AR Anime Mascot Photo Frame</title>
+<title>AR Photo Frame Booth</title>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
@@ -22,66 +22,85 @@ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 #ar-container{
 position:fixed;
 inset:0;
-width:100%;
-height:100%;
-overflow:hidden;
+background:#000;
 }
 
-#loading{
+#home{
 position:fixed;
 inset:0;
-background:#000;
-color:#fff;
 display:flex;
-align-items:center;
+flex-direction:column;
 justify-content:center;
-z-index:100;
-font-size:18px;
+align-items:center;
+gap:18px;
+padding:24px;
+background:#000;
+z-index:60;
+}
+
+#homeTitle{
+color:#fff;
+font-size:30px;
+font-weight:700;
 text-align:center;
-padding:20px;
+}
+
+#homeSub{
+color:#fff;
+font-size:15px;
+text-align:center;
+line-height:1.45;
+max-width:320px;
+opacity:.92;
+}
+
+#scanBtn,#captureBtn{
+border:none;
+border-radius:18px;
+padding:16px 28px;
+font-size:20px;
+font-weight:700;
+background:#ff5ca9;
+color:#fff;
+box-shadow:0 8px 24px rgba(0,0,0,.25);
+}
+
+#captureBtn{
+position:fixed;
+bottom:24px;
+left:50%;
+transform:translateX(-50%);
+z-index:80;
+display:none;
 }
 
 #title{
 position:fixed;
-top:14px;
+top:12px;
 left:0;
 width:100%;
 text-align:center;
 color:#fff;
 font-size:22px;
 font-weight:700;
-z-index:20;
+z-index:30;
 text-shadow:0 2px 8px rgba(0,0,0,.7);
 pointer-events:none;
 }
 
-#guide{
+#status{
 position:fixed;
-bottom:95px;
+top:46px;
 left:0;
 width:100%;
 text-align:center;
 color:#fff;
-font-size:15px;
-z-index:20;
+font-size:14px;
+z-index:30;
 text-shadow:0 2px 8px rgba(0,0,0,.7);
+padding:0 12px;
+box-sizing:border-box;
 pointer-events:none;
-}
-
-#captureBtn{
-position:fixed;
-bottom:25px;
-left:50%;
-transform:translateX(-50%);
-z-index:20;
-border:none;
-border-radius:16px;
-padding:15px 30px;
-font-size:20px;
-font-weight:700;
-color:#fff;
-background:linear-gradient(135deg,#ff5ca9,#ff84d2);
-box-shadow:0 8px 20px rgba(0,0,0,.28);
 }
 
 #flash{
@@ -90,7 +109,7 @@ inset:0;
 background:#fff;
 opacity:0;
 pointer-events:none;
-z-index:200;
+z-index:100;
 }
 </style>
 </head>
@@ -98,181 +117,347 @@ z-index:200;
 <body>
 
 <div id="ar-container"></div>
-<div id="loading">Opening Camera...</div>
-<div id="flash"></div>
 
-<div id="title">AR Anime Mascot Photo Frame</div>
-<div id="guide">マーカーをカメラに映してください</div>
+<div id="title">ARフォトフレーム</div>
+<div id="status">準備完了</div>
+
+<div id="home">
+<div id="homeTitle">ARフォトフレーム</div>
+<div id="homeSub">下のボタンを押してARマーカーをスキャンしてください。</div>
+<button id="scanBtn">ARマーカーをスキャン</button>
+</div>
 
 <button id="captureBtn">📸 撮影</button>
 
+<div id="flash"></div>
+
 <script>
-let renderer, scene, camera, mascot;
+/* ---------- CONFIG ---------- */
+const DATA = [
+{frame:"./samurai-frame1.png", name:"Samurai"},
+{frame:"./ninja-frame2.png", name:"Shadow-Ninja"},
+{frame:"./idol-frame3.png", name:"Sakura-Idol"},
+{frame:"./mecha-frame4.png", name:"Mecha-Bot"},
+{frame:"./kitsune-frame5.png", name:"Kitsune-Spirit"},
+{frame:"./dragon-frame6.png", name:"Dragon-Knight"},
+{frame:"./water-frame7.png", name:"Water-Mage"}
+];
 
-window.addEventListener("load", startAR);
+const TARGETS_FILE = "./targets.mind";
+/* ---------------------------- */
 
-async function startAR(){
+const container = document.getElementById("ar-container");
+const statusEl = document.getElementById("status");
+const home = document.getElementById("home");
+const scanBtn = document.getElementById("scanBtn");
+const captureBtn = document.getElementById("captureBtn");
+
+let mode = "home";
+let busy = false;
+let currentIndex = -1;
+
+let mindarThree = null;
+let renderer = null;
+let scene = null;
+let camera = null;
+
+let selfieStream = null;
+let selfieVideo = null;
+let frameOverlay = null;
+let frameBitmap = null;
+
+scanBtn.addEventListener("click", startScanner);
+captureBtn.addEventListener("click", takePhoto);
+
+/* ---------- HELPERS ---------- */
+
+function setStatus(t){
+statusEl.textContent = t;
+}
+
+function showHome(){
+home.style.display = "flex";
+captureBtn.style.display = "none";
+mode = "home";
+setStatus("準備完了");
+}
+
+function hideHome(){
+home.style.display = "none";
+}
+
+function flash(){
+const el = document.getElementById("flash");
+el.style.transition = "none";
+el.style.opacity = "0.95";
+setTimeout(()=>{
+el.style.transition = "opacity .35s ease";
+el.style.opacity = "0";
+},40);
+}
+
+function clearContainer(){
+container.innerHTML = "";
+}
+
+async function stopTracks(stream){
+if(stream){
+stream.getTracks().forEach(t=>t.stop());
+}
+}
+
+function safeName(name){
+return name.replace(/[^\w\-]/g,"");
+}
+
+function downloadFile(dataUrl,fileName){
+const a = document.createElement("a");
+a.href = dataUrl;
+a.download = fileName;
+document.body.appendChild(a);
+a.click();
+a.remove();
+}
+
+async function loadFrameWithTransparency(src){
+const response = await fetch(src);
+const blob = await response.blob();
+return await createImageBitmap(blob);
+}
+
+/* ---------- SCANNER ---------- */
+
+async function startScanner(){
+
+hideHome();
+
+mode = "scanner";
+busy = false;
+currentIndex = -1;
+
+await cleanupSelfie();
+await cleanupScanner();
+
+clearContainer();
 
 try{
 
-/* verify files */
-const t1 = await fetch("./targets.mind");
-if(!t1.ok) throw new Error("targets.mind not found");
+setStatus("背面カメラを起動しています...");
 
-const t2 = await fetch("./anime-mascot.png");
-if(!t2.ok) throw new Error("anime-mascot.png not found");
-
-const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-container: document.querySelector("#ar-container"),
-imageTargetSrc: "./targets.mind",
+mindarThree = new window.MINDAR.IMAGE.MindARThree({
+container: container,
+imageTargetSrc: TARGETS_FILE,
 uiScanning:false,
 uiLoading:false,
-uiError:false
+uiError:false,
+maxTrack:1
 });
 
 renderer = mindarThree.renderer;
 scene = mindarThree.scene;
 camera = mindarThree.camera;
 
-renderer.preserveDrawingBuffer = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setSize(innerWidth,innerHeight);
 
-const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1.2);
-scene.add(light);
+scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,1.1));
 
-const loader = new THREE.TextureLoader();
-const texture = await loader.loadAsync("./anime-mascot.png");
+for(let i=0;i<7;i++){
 
-texture.encoding = THREE.sRGBEncoding;
+const anchor = mindarThree.addAnchor(i);
 
-const material = new THREE.MeshBasicMaterial({
-map:texture,
-transparent:true,
-alphaTest:0.35,
-side:THREE.DoubleSide
-});
+anchor.onTargetFound = ()=>{
 
-mascot = new THREE.Mesh(
-new THREE.PlaneGeometry(1.1,2.4),
-material
-);
+if(mode !== "scanner") return;
+if(busy) return;
 
-mascot.position.set(0,1.15,0);
+busy = true;
+currentIndex = i;
 
-const anchor = mindarThree.addAnchor(0);
-anchor.group.add(mascot);
+setTimeout(()=>{
+openSelfie(i);
+},220);
+
+};
+
+}
 
 await mindarThree.start();
 
-document.getElementById("loading").style.display = "none";
-
 renderer.setAnimationLoop(()=>{
-
-if(mascot){
-mascot.lookAt(camera.position);
-}
-
 renderer.render(scene,camera);
-
 });
 
-}catch(error){
+setStatus("ARマーカーをカメラに映してください");
 
-console.error(error);
+}catch(err){
 
-document.getElementById("loading").innerHTML =
-"Failed to start AR<br><br>" +
-(error.message || "Unknown Error");
-
-}
-}
-
-function flashEffect(){
-
-const flash = document.getElementById("flash");
-
-flash.style.transition = "none";
-flash.style.opacity = "0.95";
-
-setTimeout(()=>{
-flash.style.transition = "opacity .35s ease";
-flash.style.opacity = "0";
-},40);
+console.error(err);
+setStatus("カメラを起動できませんでした");
+showHome();
 
 }
+}
 
-async function saveImage(dataUrl){
+async function cleanupScanner(){
+
+try{
+if(mindarThree) await mindarThree.stop();
+}catch(e){}
+
+try{
+if(renderer) renderer.setAnimationLoop(null);
+}catch(e){}
+
+mindarThree = null;
+renderer = null;
+scene = null;
+camera = null;
+}
+
+/* ---------- SELFIE ---------- */
+
+async function openSelfie(index){
+
+mode = "selfie";
+
+await cleanupScanner();
+clearContainer();
 
 try{
 
-if(navigator.share){
+setStatus("前面カメラを起動しています...");
 
-const response = await fetch(dataUrl);
-const blob = await response.blob();
-
-const file = new File(
-[blob],
-"ar-photo.jpg",
-{type:"image/jpeg"}
-);
-
-await navigator.share({
-files:[file],
-title:"AR Photo"
+selfieStream = await navigator.mediaDevices.getUserMedia({
+video:{
+facingMode:{ideal:"user"},
+width:{ideal:1280},
+height:{ideal:720}
+},
+audio:false
 });
 
-return;
+selfieVideo = document.createElement("video");
+selfieVideo.autoplay = true;
+selfieVideo.muted = true;
+selfieVideo.playsInline = true;
+selfieVideo.srcObject = selfieStream;
+
+Object.assign(selfieVideo.style,{
+position:"fixed",
+top:"0",
+left:"0",
+width:"100vw",
+height:"100dvh",
+objectFit:"cover"
+});
+
+container.appendChild(selfieVideo);
+await selfieVideo.play();
+
+frameOverlay = document.createElement("img");
+frameOverlay.src = DATA[index].frame;
+
+Object.assign(frameOverlay.style,{
+position:"fixed",
+top:"0",
+left:"0",
+width:"100vw",
+height:"100dvh",
+objectFit:"fill",
+pointerEvents:"none",
+zIndex:"40",
+background:"transparent"
+});
+
+container.appendChild(frameOverlay);
+
+frameBitmap = await loadFrameWithTransparency(DATA[index].frame);
+
+captureBtn.style.display = "block";
+setStatus("撮影できます");
+
+}catch(err){
+
+console.error(err);
+setStatus("前面カメラを起動できませんでした");
+showHome();
+
+}
 }
 
-}catch(e){
-console.log(e);
+async function cleanupSelfie(){
+
+captureBtn.style.display = "none";
+
+if(selfieVideo){
+try{selfieVideo.pause();}catch(e){}
 }
 
-/* fallback */
-const link = document.createElement("a");
-link.href = dataUrl;
-link.download = "ar-photo.jpg";
-link.click();
+await stopTracks(selfieStream);
 
+selfieStream = null;
+selfieVideo = null;
+frameOverlay = null;
+frameBitmap = null;
 }
+
+/* ---------- PHOTO ---------- */
 
 async function takePhoto(){
 
-if(!renderer) return;
+if(mode !== "selfie") return;
+if(!selfieVideo) return;
 
-flashEffect();
+captureBtn.disabled = true;
 
-renderer.render(scene,camera);
+flash();
 
-const glCanvas = renderer.domElement;
-const video = document.querySelector("video");
+try{
 
-if(!glCanvas || !video) return;
+const w = selfieVideo.videoWidth || 1280;
+const h = selfieVideo.videoHeight || 720;
 
-const output = document.createElement("canvas");
-output.width = glCanvas.width;
-output.height = glCanvas.height;
+const canvas = document.createElement("canvas");
+canvas.width = w;
+canvas.height = h;
 
-const ctx = output.getContext("2d");
+const ctx = canvas.getContext("2d");
+ctx.clearRect(0,0,w,h);
 
-ctx.drawImage(video,0,0,output.width,output.height);
-ctx.drawImage(glCanvas,0,0,output.width,output.height);
+ctx.drawImage(selfieVideo,0,0,w,h);
 
-const dataUrl = output.toDataURL("image/jpeg",0.95);
+if(frameBitmap){
+ctx.drawImage(frameBitmap,0,0,w,h);
+}
 
-await saveImage(dataUrl);
+const dataUrl = canvas.toDataURL("image/jpeg",0.95);
+
+const fileName = safeName(DATA[currentIndex].name) + ".jpg";
+
+downloadFile(dataUrl,fileName);
+
+setStatus("保存しました");
+
+}catch(err){
+
+console.error(err);
+setStatus("保存に失敗しました");
 
 }
 
-document.getElementById("captureBtn").addEventListener("click", takePhoto);
+setTimeout(async ()=>{
+captureBtn.disabled = false;
+await cleanupSelfie();
+showHome();
+},900);
+
+}
 
 window.addEventListener("resize",()=>{
-
 if(renderer){
-renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setSize(innerWidth,innerHeight);
 }
-
 });
 </script>
 
