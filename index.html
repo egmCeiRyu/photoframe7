@@ -22,74 +22,58 @@ font-family:sans-serif;
 #ar-container{
 position:fixed;
 inset:0;
-width:100%;
-height:100%;
-}
-
-#title{
-position:fixed;
-top:14px;
-left:0;
-width:100%;
-text-align:center;
-color:#fff;
-font-size:22px;
-font-weight:bold;
-z-index:20;
-text-shadow:0 2px 8px rgba(0,0,0,.7);
-pointer-events:none;
-}
-
-#guide{
-position:fixed;
-bottom:95px;
-left:0;
-width:100%;
-text-align:center;
-color:#fff;
-font-size:15px;
-z-index:20;
-text-shadow:0 2px 8px rgba(0,0,0,.7);
-pointer-events:none;
-}
-
-#captureBtn{
-position:fixed;
-bottom:25px;
-left:50%;
-transform:translateX(-50%);
-z-index:20;
-border:none;
-border-radius:16px;
-padding:15px 30px;
-font-size:20px;
-font-weight:bold;
-color:#fff;
-background:linear-gradient(135deg,#ff5ca9,#ff84d2);
-box-shadow:0 8px 20px rgba(0,0,0,.28);
 }
 
 #loading{
 position:fixed;
 inset:0;
-background:#000;
-color:#fff;
 display:flex;
 align-items:center;
 justify-content:center;
-z-index:99;
+background:#000;
+color:#fff;
+z-index:100;
 font-size:18px;
 text-align:center;
 padding:20px;
 }
 
-#flash{
+#captureBtn{
 position:fixed;
-inset:0;
-background:#fff;
-opacity:0;
-pointer-events:none;
-z-index:200;
+bottom:24px;
+left:50%;
+transform:translateX(-50%);
+z-index:30;
+border:none;
+border-radius:16px;
+padding:16px 32px;
+font-size:20px;
+font-weight:bold;
+background:#ff5ca9;
+color:#fff;
+}
+
+#title{
+position:fixed;
+top:12px;
+left:0;
+width:100%;
+text-align:center;
+color:#fff;
+font-size:20px;
+font-weight:bold;
+z-index:30;
+}
+
+#guide{
+position:fixed;
+top:42px;
+left:0;
+width:100%;
+text-align:center;
+color:#fff;
+font-size:14px;
+z-index:30;
 }
 </style>
 </head>
@@ -97,18 +81,13 @@ z-index:200;
 <body>
 
 <div id="ar-container"></div>
-
 <div id="loading">Opening Camera...</div>
-<div id="flash"></div>
-
-<div id="title">AR Anime Photo Frame</div>
+<div id="title">AR Photo Frame</div>
 <div id="guide">マーカーをカメラに映してください</div>
-
 <button id="captureBtn">📸 撮影</button>
 
 <script>
 let renderer, scene, camera;
-let frames = [];
 
 window.addEventListener("load", startAR);
 
@@ -118,7 +97,10 @@ try{
 
 const mindarThree = new window.MINDAR.IMAGE.MindARThree({
 container: document.querySelector("#ar-container"),
-imageTargetSrc:"./targets.mind",
+
+/* CORRIGIDO AQUI */
+imageTargetSrc:"./samurai.mind",
+
 uiScanning:false,
 uiLoading:false,
 uiError:false
@@ -130,105 +112,54 @@ camera = mindarThree.camera;
 
 renderer.preserveDrawingBuffer = true;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth,window.innerHeight);
 
 const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1.2);
 scene.add(light);
 
-const loader = new THREE.TextureLoader();
-
-const files = [
-"./samurai-frame1.png",
-"./ninja-frame2.png",
-"./idol-frame3.png",
-"./mecha-frame4.png",
-"./kitsune-frame5.png",
-"./dragon-frame6.png",
-"./water-frame7.png"
-];
-
-for(let i=0;i<7;i++){
-
-const texture = await loader.loadAsync(files[i]);
+const texture = await new THREE.TextureLoader().loadAsync("./samurai-frame1.png");
 texture.encoding = THREE.sRGBEncoding;
-
-const material = new THREE.MeshBasicMaterial({
-map:texture,
-transparent:true,
-alphaTest:0.1,
-side:THREE.DoubleSide
-});
 
 const frame = new THREE.Mesh(
 new THREE.PlaneGeometry(1.6,2.8),
-material
+new THREE.MeshBasicMaterial({
+map:texture,
+transparent:true,
+side:THREE.DoubleSide
+})
 );
 
 frame.position.set(0,0.9,0);
-frame.visible = false;
 
-const anchor = mindarThree.addAnchor(i);
+const anchor = mindarThree.addAnchor(0);
 anchor.group.add(frame);
-
-anchor.onTargetFound = ()=>{
-frame.visible = true;
-};
-
-anchor.onTargetLost = ()=>{
-frame.visible = false;
-};
-
-frames.push(frame);
-}
 
 await mindarThree.start();
 
 document.getElementById("loading").style.display="none";
 
 renderer.setAnimationLoop(()=>{
-
-for(let i=0;i<frames.length;i++){
-if(frames[i].visible){
-frames[i].lookAt(camera.position);
-}
-}
-
+frame.lookAt(camera.position);
 renderer.render(scene,camera);
-
 });
 
-}catch(error){
+}catch(err){
 
 document.getElementById("loading").innerHTML =
-"Failed to start AR.<br>Check camera permission.";
+"Failed to start.<br>"+err.message;
 
-console.error(error);
+console.error(err);
 }
 }
 
-function flashEffect(){
-
-const flash = document.getElementById("flash");
-
-flash.style.transition="none";
-flash.style.opacity="0.95";
-
-setTimeout(()=>{
-flash.style.transition="opacity .35s ease";
-flash.style.opacity="0";
-},40);
-}
-
-function takePhoto(){
-
-flashEffect();
+document.getElementById("captureBtn").addEventListener("click",()=>{
 
 renderer.render(scene,camera);
 
 const glCanvas = renderer.domElement;
 const video = document.querySelector("video");
 
-if(!glCanvas || !video) return;
+if(!video) return;
 
 const output = document.createElement("canvas");
 output.width = glCanvas.width;
@@ -240,19 +171,12 @@ ctx.drawImage(video,0,0,output.width,output.height);
 ctx.drawImage(glCanvas,0,0,output.width,output.height);
 
 const link = document.createElement("a");
-link.download = "ar-photo-"+Date.now()+".jpg";
+link.download = "photo.jpg";
 link.href = output.toDataURL("image/jpeg",0.95);
 link.click();
-}
 
-document.getElementById("captureBtn").addEventListener("click", takePhoto);
-
-window.addEventListener("resize",()=>{
-if(renderer){
-renderer.setSize(window.innerWidth,window.innerHeight);
-}
 });
-</script>
 
+</script>
 </body>
 </html>
