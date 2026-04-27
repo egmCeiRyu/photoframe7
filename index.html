@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no">
-<title>AR 7 Characters</title>
+<title>AR 7 Photo Frames</title>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
@@ -19,39 +19,40 @@ background:#000;
 font-family:sans-serif;
 }
 
-#ar-container{
+#app,#ar-container{
 position:fixed;
 inset:0;
+width:100%;
+height:100%;
 }
 
-#menu{
+#title{
 position:fixed;
-inset:0;
-background:#000;
-display:flex;
-flex-direction:column;
-justify-content:center;
-align-items:center;
-gap:12px;
-z-index:50;
-padding:20px;
-}
-
-#menu h1{
+top:12px;
+left:0;
+width:100%;
+text-align:center;
 color:#fff;
-font-size:28px;
-margin:0 0 10px 0;
-}
-
-button{
-border:none;
-border-radius:16px;
-padding:14px 22px;
-font-size:18px;
+font-size:22px;
 font-weight:bold;
+z-index:30;
+text-shadow:0 2px 8px rgba(0,0,0,.7);
+pointer-events:none;
+}
+
+#status{
+position:fixed;
+top:46px;
+left:0;
+width:100%;
+text-align:center;
 color:#fff;
-background:#ff5ca9;
-width:260px;
+font-size:14px;
+z-index:30;
+text-shadow:0 2px 8px rgba(0,0,0,.7);
+pointer-events:none;
+padding:0 10px;
+box-sizing:border-box;
 }
 
 #captureBtn{
@@ -60,107 +61,90 @@ bottom:24px;
 left:50%;
 transform:translateX(-50%);
 z-index:40;
+border:none;
+border-radius:16px;
+padding:15px 28px;
+font-size:20px;
+font-weight:bold;
+background:#ff5ca9;
+color:#fff;
 display:none;
-width:auto;
 }
 
-#msg{
+#flash{
 position:fixed;
-top:14px;
-left:0;
-width:100%;
-text-align:center;
-color:#fff;
-font-size:18px;
-z-index:40;
-text-shadow:0 2px 8px rgba(0,0,0,.7);
+inset:0;
+background:#fff;
+opacity:0;
+pointer-events:none;
+z-index:100;
 }
 </style>
 </head>
 
 <body>
 
+<div id="app">
 <div id="ar-container"></div>
-<div id="msg">Choose Character</div>
 
-<div id="menu">
-<h1>AR Photo Frame</h1>
-
-<button onclick="loadCharacter('samurai')">Samurai</button>
-<button onclick="loadCharacter('ninja')">Shadow Ninja</button>
-<button onclick="loadCharacter('idol')">Sakura Idol</button>
-<button onclick="loadCharacter('mecha')">Mecha Bot</button>
-<button onclick="loadCharacter('kitsune')">Kitsune Spirit</button>
-<button onclick="loadCharacter('dragon')">Dragon Knight</button>
-<button onclick="loadCharacter('water')">Water Mage</button>
-
-</div>
+<div id="title">AR Photo Frame</div>
+<div id="status">Opening camera...</div>
 
 <button id="captureBtn">📸 PHOTO</button>
+
+<div id="flash"></div>
+</div>
 
 <script>
 let mindarThree;
 let renderer, scene, camera;
-let currentFrame = "";
+
+let currentIndex = -1;
 let currentStream = null;
 let selfieVideo = null;
 let overlay = null;
 
-const chars = {
+const statusEl = document.getElementById("status");
+const captureBtn = document.getElementById("captureBtn");
+const container = document.getElementById("ar-container");
 
-samurai:{
-mind:"./samurai.mind",
-frame:"./samurai-frame1.png"
-},
+const frames = [
+"./samurai-frame1.png",
+"./ninja-frame2.png",
+"./idol-frame3.png",
+"./mecha-frame4.png",
+"./kitsune-frame5.png",
+"./dragon-frame6.png",
+"./water-frame7.png"
+];
 
-ninja:{
-mind:"./ninja.mind",
-frame:"./ninja-frame2.png"
-},
+window.addEventListener("load", startScanner);
+captureBtn.addEventListener("click", takePhoto);
 
-idol:{
-mind:"./idol.mind",
-frame:"./idol-frame3.png"
-},
-
-mecha:{
-mind:"./mecha.mind",
-frame:"./mecha-frame4.png"
-},
-
-kitsune:{
-mind:"./kitsune.mind",
-frame:"./kitsune-frame5.png"
-},
-
-dragon:{
-mind:"./dragon.mind",
-frame:"./dragon-frame6.png"
-},
-
-water:{
-mind:"./water.mind",
-frame:"./water-frame7.png"
+function setStatus(txt){
+statusEl.innerHTML = txt;
 }
 
-};
+async function stopCurrentStream(){
+if(currentStream){
+currentStream.getTracks().forEach(t=>t.stop());
+currentStream = null;
+}
+}
 
-async function loadCharacter(name){
-
-const item = chars[name];
-currentFrame = item.frame;
-
-document.getElementById("menu").style.display="none";
-document.getElementById("msg").innerHTML="Opening camera...";
+async function startScanner(){
 
 try{
 
+setStatus("Opening rear camera...");
+
 mindarThree = new window.MINDAR.IMAGE.MindARThree({
-container: document.querySelector("#ar-container"),
-imageTargetSrc:item.mind,
+container: container,
+imageTargetSrc:"./targets.mind",
 uiScanning:false,
 uiLoading:false,
-uiError:false
+uiError:false,
+maxTrack:1
 });
 
 renderer = mindarThree.renderer;
@@ -168,20 +152,30 @@ scene = mindarThree.scene;
 camera = mindarThree.camera;
 
 renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(innerWidth,innerHeight);
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.preserveDrawingBuffer = true;
 
-const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1);
+const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1.2);
 scene.add(light);
 
-const anchor = mindarThree.addAnchor(0);
+for(let i=0;i<7;i++){
+
+const anchor = mindarThree.addAnchor(i);
 
 anchor.onTargetFound = ()=>{
-openSelfie();
+
+if(currentIndex !== -1) return;
+
+currentIndex = i;
+openSelfie(i);
+
 };
+
+}
 
 await mindarThree.start();
 
-document.getElementById("msg").innerHTML="Point camera to marker";
+setStatus("Point camera to marker");
 
 renderer.setAnimationLoop(()=>{
 renderer.render(scene,camera);
@@ -190,27 +184,23 @@ renderer.render(scene,camera);
 }catch(err){
 
 console.error(err);
-document.getElementById("msg").innerHTML="Error: "+err.message;
-document.getElementById("menu").style.display="flex";
+setStatus("Camera failed. Check HTTPS / Permission");
 }
 }
 
-async function openSelfie(){
-
-document.getElementById("msg").innerHTML="Opening selfie...";
+async function openSelfie(index){
 
 try{
+
+setStatus("Opening selfie camera...");
 
 if(mindarThree){
 await mindarThree.stop();
 }
 
-const container = document.getElementById("ar-container");
-container.innerHTML="";
+container.innerHTML = "";
 
-if(currentStream){
-currentStream.getTracks().forEach(t=>t.stop());
-}
+await stopCurrentStream();
 
 currentStream = await navigator.mediaDevices.getUserMedia({
 video:{
@@ -238,7 +228,7 @@ container.appendChild(selfieVideo);
 await selfieVideo.play();
 
 overlay = document.createElement("img");
-overlay.src = currentFrame;
+overlay.src = frames[index];
 
 overlay.style.position="fixed";
 overlay.style.inset="0";
@@ -249,19 +239,34 @@ overlay.style.pointerEvents="none";
 
 container.appendChild(overlay);
 
-document.getElementById("captureBtn").style.display="block";
-document.getElementById("msg").innerHTML="Selfie Mode";
+captureBtn.style.display = "block";
+setStatus("Selfie mode ready");
 
 }catch(err){
 
 console.error(err);
-document.getElementById("msg").innerHTML="Selfie failed";
+setStatus("Selfie camera failed");
 }
 }
 
-document.getElementById("captureBtn").addEventListener("click",()=>{
+function flashEffect(){
+
+const flash = document.getElementById("flash");
+
+flash.style.transition = "none";
+flash.style.opacity = "0.95";
+
+setTimeout(()=>{
+flash.style.transition = "opacity .35s ease";
+flash.style.opacity = "0";
+},40);
+}
+
+function takePhoto(){
 
 if(!selfieVideo) return;
+
+flashEffect();
 
 const canvas = document.createElement("canvas");
 canvas.width = selfieVideo.videoWidth || 1280;
@@ -279,7 +284,12 @@ const link = document.createElement("a");
 link.download = "AR-Photo-"+Date.now()+".jpg";
 link.href = canvas.toDataURL("image/jpeg",0.95);
 link.click();
+}
 
+window.addEventListener("resize",()=>{
+if(renderer){
+renderer.setSize(window.innerWidth,window.innerHeight);
+}
 });
 </script>
 
