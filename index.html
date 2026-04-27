@@ -7,34 +7,16 @@
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 <style>
-html,body{
-margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;
-font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
 #ar-container{position:fixed;inset:0;background:#000;}
-#home{
-position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:24px;background:#000;z-index:60;
-}
+#home{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:24px;background:#000;z-index:60;}
 #homeTitle{color:#fff;font-size:30px;font-weight:700;text-align:center;}
 #homeSub{color:#fff;font-size:15px;text-align:center;line-height:1.45;max-width:320px;opacity:.92;}
-#scanBtn,#captureBtn{
-border:none;border-radius:18px;padding:16px 28px;font-size:20px;font-weight:700;background:#ff5ca9;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25);
-}
-#captureBtn{
-position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:80;display:none;
-}
-#title{
-position:fixed;top:12px;left:0;width:100%;text-align:center;color:#fff;font-size:22px;font-weight:700;z-index:30;
-text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;
-}
-#status{
-position:fixed;top:46px;left:0;width:100%;text-align:center;color:#fff;font-size:14px;z-index:30;
-text-shadow:0 2px 8px rgba(0,0,0,.7);padding:0 12px;box-sizing:border-box;pointer-events:none;
-white-space: pre-line; line-height:1.45;
-}
-#flash{
-position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;
-}
+#scanBtn,#captureBtn{border:none;border-radius:18px;padding:16px 28px;font-size:20px;font-weight:700;background:#ff5ca9;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25);}
+#captureBtn{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:80;display:none;}
+#title{position:fixed;top:12px;left:0;width:100%;text-align:center;color:#fff;font-size:22px;font-weight:700;z-index:30;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;}
+#status{position:fixed;top:46px;left:0;width:100%;text-align:center;color:#fff;font-size:14px;z-index:30;text-shadow:0 2px 8px rgba(0,0,0,.7);padding:0 12px;box-sizing:border-box;pointer-events:none;white-space:pre-line;line-height:1.45;}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;}
 </style>
 </head>
 <body>
@@ -88,14 +70,7 @@ captureBtn.addEventListener("click", takePhoto);
 
 /* ---------- HELPERS ---------- */
 function setStatus(t){ statusEl.textContent = t; }
-
-function showHome(){
-  home.style.display = "flex";
-  captureBtn.style.display = "none";
-  mode = "home";
-  setStatus("準備完了");
-}
-
+function showHome(){ home.style.display = "flex"; captureBtn.style.display = "none"; mode = "home"; setStatus("準備完了"); }
 function hideHome(){ home.style.display = "none"; }
 
 function flash(){
@@ -128,7 +103,7 @@ async function loadFrameWithTransparency(src){
   return await createImageBitmap(blob);
 }
 
-/* ---------- SCANNER ---------- */
+/* ---------- SCANNER & SELFIE (mantido igual) ---------- */
 async function startScanner(){
   hideHome();
   mode = "scanner";
@@ -152,7 +127,6 @@ async function startScanner(){
     renderer = mindarThree.renderer;
     scene = mindarThree.scene;
     camera = mindarThree.camera;
-
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.1));
@@ -183,7 +157,6 @@ async function cleanupScanner(){
   mindarThree = renderer = scene = camera = null;
 }
 
-/* ---------- SELFIE ---------- */
 async function openSelfie(index){
   mode = "selfie";
   await cleanupScanner();
@@ -228,7 +201,7 @@ async function cleanupSelfie(){
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- FOTO ---------- */
+/* ---------- FOTO (Versão Melhorada) ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
@@ -240,26 +213,44 @@ async function takePhoto(){
     const h = selfieVideo.videoHeight || 720;
 
     const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
-
     ctx.drawImage(selfieVideo, 0, 0, w, h);
     if(frameBitmap) ctx.drawImage(frameBitmap, 0, 0, w, h);
 
     const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
     const fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
-    downloadFile(dataUrl, fileName);
+    const blob = await fetch(dataUrl).then(r => r.blob());
+    const file = new File([blob], fileName, { type: "image/jpeg" });
 
-    setStatus("✅ 写真を保存しました！\n\nDownloadsフォルダを開いて\n写真を長押し → 「写真に保存」をタップしてください");
+    // Tenta abrir o menu nativo de compartilhamento (melhor no iOS)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: DATA[currentIndex].name,
+          text: "ARフォトフレームで撮影しました！"
+        });
+        setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
+      } catch (shareErr) {
+        // Usuário cancelou ou erro no share → faz download
+        downloadFile(dataUrl, fileName);
+        setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップしてください");
+      }
+    } 
+    else {
+      // Android ou navegador que não suporta share com arquivo
+      downloadFile(dataUrl, fileName);
+      setStatus("写真をDownloadsに保存しました\n\n写真を開いて「共有」→「写真に保存」をタップしてください");
+    }
 
   } catch(err){
     console.error(err);
     setStatus("保存に失敗しました");
   }
 
-  // Volta automaticamente para o menu inicial após 4.5 segundos
+  // Volta automaticamente para o menu de escanear
   setTimeout(() => {
     cleanupSelfie();
     showHome();
