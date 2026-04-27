@@ -2,72 +2,186 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AR Test</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no">
+<title>AR 7 Characters</title>
 
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
+
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#000;}
-#ar{position:fixed;inset:0;}
-#msg{
-position:fixed;top:20px;left:0;width:100%;
-text-align:center;color:#fff;font-size:20px;z-index:10;
+html,body{
+margin:0;
+padding:0;
+width:100%;
+height:100%;
+overflow:hidden;
+background:#000;
+font-family:sans-serif;
 }
+
+#ar-container{
+position:fixed;
+inset:0;
+}
+
+#menu{
+position:fixed;
+inset:0;
+background:#000;
+display:flex;
+flex-direction:column;
+justify-content:center;
+align-items:center;
+gap:12px;
+z-index:50;
+padding:20px;
+}
+
+#menu h1{
+color:#fff;
+font-size:28px;
+margin:0 0 10px 0;
+}
+
 button{
-position:fixed;bottom:30px;left:50%;
+border:none;
+border-radius:16px;
+padding:14px 22px;
+font-size:18px;
+font-weight:bold;
+color:#fff;
+background:#ff5ca9;
+width:260px;
+}
+
+#captureBtn{
+position:fixed;
+bottom:24px;
+left:50%;
 transform:translateX(-50%);
-z-index:10;padding:14px 24px;font-size:18px;
+z-index:40;
+display:none;
+width:auto;
+}
+
+#msg{
+position:fixed;
+top:14px;
+left:0;
+width:100%;
+text-align:center;
+color:#fff;
+font-size:18px;
+z-index:40;
+text-shadow:0 2px 8px rgba(0,0,0,.7);
 }
 </style>
 </head>
+
 <body>
 
-<div id="ar"></div>
-<div id="msg">Tap START</div>
-<button onclick="startAR()">START</button>
+<div id="ar-container"></div>
+<div id="msg">Choose Character</div>
+
+<div id="menu">
+<h1>AR Photo Frame</h1>
+
+<button onclick="loadCharacter('samurai')">Samurai</button>
+<button onclick="loadCharacter('ninja')">Shadow Ninja</button>
+<button onclick="loadCharacter('idol')">Sakura Idol</button>
+<button onclick="loadCharacter('mecha')">Mecha Bot</button>
+<button onclick="loadCharacter('kitsune')">Kitsune Spirit</button>
+<button onclick="loadCharacter('dragon')">Dragon Knight</button>
+<button onclick="loadCharacter('water')">Water Mage</button>
+
+</div>
+
+<button id="captureBtn">📸 PHOTO</button>
 
 <script>
-async function startAR(){
+let mindarThree;
+let renderer, scene, camera;
+let currentFrame = "";
+let currentStream = null;
+let selfieVideo = null;
+let overlay = null;
 
-document.querySelector("button").style.display="none";
+const chars = {
+
+samurai:{
+mind:"./samurai.mind",
+frame:"./samurai-frame1.png"
+},
+
+ninja:{
+mind:"./ninja.mind",
+frame:"./ninja-frame2.png"
+},
+
+idol:{
+mind:"./idol.mind",
+frame:"./idol-frame3.png"
+},
+
+mecha:{
+mind:"./mecha.mind",
+frame:"./mecha-frame4.png"
+},
+
+kitsune:{
+mind:"./kitsune.mind",
+frame:"./kitsune-frame5.png"
+},
+
+dragon:{
+mind:"./dragon.mind",
+frame:"./dragon-frame6.png"
+},
+
+water:{
+mind:"./water.mind",
+frame:"./water-frame7.png"
+}
+
+};
+
+async function loadCharacter(name){
+
+const item = chars[name];
+currentFrame = item.frame;
+
+document.getElementById("menu").style.display="none";
 document.getElementById("msg").innerHTML="Opening camera...";
 
 try{
 
-const mindarThree = new window.MINDAR.IMAGE.MindARThree({
-container: document.querySelector("#ar"),
-imageTargetSrc:"./targets.mind",
+mindarThree = new window.MINDAR.IMAGE.MindARThree({
+container: document.querySelector("#ar-container"),
+imageTargetSrc:item.mind,
 uiScanning:false,
 uiLoading:false,
-uiError:false,
-maxTrack:1
+uiError:false
 });
 
-const {renderer, scene, camera} = mindarThree;
+renderer = mindarThree.renderer;
+scene = mindarThree.scene;
+camera = mindarThree.camera;
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
 
 const light = new THREE.HemisphereLight(0xffffff,0xbbbbff,1);
 scene.add(light);
 
-for(let i=0;i<7;i++){
-
-const anchor = mindarThree.addAnchor(i);
+const anchor = mindarThree.addAnchor(0);
 
 anchor.onTargetFound = ()=>{
-document.getElementById("msg").innerHTML =
-"Marker detectado: " + i;
+openSelfie();
 };
-
-anchor.onTargetLost = ()=>{
-document.getElementById("msg").innerHTML =
-"Apontando câmera...";
-};
-
-}
 
 await mindarThree.start();
 
-document.getElementById("msg").innerHTML="Apontando câmera...";
+document.getElementById("msg").innerHTML="Point camera to marker";
 
 renderer.setAnimationLoop(()=>{
 renderer.render(scene,camera);
@@ -75,12 +189,99 @@ renderer.render(scene,camera);
 
 }catch(err){
 
-document.getElementById("msg").innerHTML =
-"Erro: " + err.message;
+console.error(err);
+document.getElementById("msg").innerHTML="Error: "+err.message;
+document.getElementById("menu").style.display="flex";
+}
+}
+
+async function openSelfie(){
+
+document.getElementById("msg").innerHTML="Opening selfie...";
+
+try{
+
+if(mindarThree){
+await mindarThree.stop();
+}
+
+const container = document.getElementById("ar-container");
+container.innerHTML="";
+
+if(currentStream){
+currentStream.getTracks().forEach(t=>t.stop());
+}
+
+currentStream = await navigator.mediaDevices.getUserMedia({
+video:{
+facingMode:{ideal:"user"},
+width:{ideal:1280},
+height:{ideal:720}
+},
+audio:false
+});
+
+selfieVideo = document.createElement("video");
+selfieVideo.autoplay = true;
+selfieVideo.muted = true;
+selfieVideo.playsInline = true;
+selfieVideo.srcObject = currentStream;
+
+selfieVideo.style.position="fixed";
+selfieVideo.style.inset="0";
+selfieVideo.style.width="100%";
+selfieVideo.style.height="100%";
+selfieVideo.style.objectFit="cover";
+
+container.appendChild(selfieVideo);
+
+await selfieVideo.play();
+
+overlay = document.createElement("img");
+overlay.src = currentFrame;
+
+overlay.style.position="fixed";
+overlay.style.inset="0";
+overlay.style.width="100%";
+overlay.style.height="100%";
+overlay.style.objectFit="cover";
+overlay.style.pointerEvents="none";
+
+container.appendChild(overlay);
+
+document.getElementById("captureBtn").style.display="block";
+document.getElementById("msg").innerHTML="Selfie Mode";
+
+}catch(err){
 
 console.error(err);
+document.getElementById("msg").innerHTML="Selfie failed";
 }
 }
+
+document.getElementById("captureBtn").addEventListener("click",()=>{
+
+if(!selfieVideo) return;
+
+const canvas = document.createElement("canvas");
+canvas.width = selfieVideo.videoWidth || 1280;
+canvas.height = selfieVideo.videoHeight || 720;
+
+const ctx = canvas.getContext("2d");
+
+ctx.drawImage(selfieVideo,0,0,canvas.width,canvas.height);
+
+if(overlay){
+ctx.drawImage(overlay,0,0,canvas.width,canvas.height);
+}
+
+const link = document.createElement("a");
+link.download = "AR-Photo-"+Date.now()+".jpg";
+link.href = canvas.toDataURL("image/jpeg",0.95);
+link.click();
+
+});
 </script>
+
 </body>
 </html>
