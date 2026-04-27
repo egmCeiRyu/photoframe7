@@ -3,11 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,user-scalable=no">
-<title>AR Photo Frame Booth</title>
-
+<title>ARフォトフレーム</title>
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
-
 <style>
 html,body{
 margin:0;
@@ -18,13 +16,11 @@ overflow:hidden;
 background:#000;
 font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 }
-
 #ar-container{
 position:fixed;
 inset:0;
 background:#000;
 }
-
 #home{
 position:fixed;
 inset:0;
@@ -37,14 +33,12 @@ padding:24px;
 background:#000;
 z-index:60;
 }
-
 #homeTitle{
 color:#fff;
 font-size:30px;
 font-weight:700;
 text-align:center;
 }
-
 #homeSub{
 color:#fff;
 font-size:15px;
@@ -53,7 +47,6 @@ line-height:1.45;
 max-width:320px;
 opacity:.92;
 }
-
 #scanBtn,#captureBtn{
 border:none;
 border-radius:18px;
@@ -64,7 +57,6 @@ background:#ff5ca9;
 color:#fff;
 box-shadow:0 8px 24px rgba(0,0,0,.25);
 }
-
 #captureBtn{
 position:fixed;
 bottom:24px;
@@ -73,7 +65,6 @@ transform:translateX(-50%);
 z-index:80;
 display:none;
 }
-
 #title{
 position:fixed;
 top:12px;
@@ -87,7 +78,6 @@ z-index:30;
 text-shadow:0 2px 8px rgba(0,0,0,.7);
 pointer-events:none;
 }
-
 #status{
 position:fixed;
 top:46px;
@@ -101,8 +91,9 @@ text-shadow:0 2px 8px rgba(0,0,0,.7);
 padding:0 12px;
 box-sizing:border-box;
 pointer-events:none;
+white-space: pre-line;
+line-height: 1.4;
 }
-
 #flash{
 position:fixed;
 inset:0;
@@ -111,355 +102,361 @@ opacity:0;
 pointer-events:none;
 z-index:100;
 }
+#shareBtn{
+position:fixed;
+bottom:100px;
+left:50%;
+transform:translateX(-50%);
+z-index:90;
+padding:14px 28px;
+font-size:17px;
+font-weight:600;
+background:#34c759;
+color:#fff;
+border:none;
+border-radius:14px;
+box-shadow:0 6px 20px rgba(0,0,0,.3);
+display:none;
+}
 </style>
 </head>
-
 <body>
-
 <div id="ar-container"></div>
-
 <div id="title">ARフォトフレーム</div>
 <div id="status">準備完了</div>
 
 <div id="home">
-<div id="homeTitle">ARフォトフレーム</div>
-<div id="homeSub">下のボタンを押してARマーカーをスキャンしてください。</div>
-<button id="scanBtn">ARマーカーをスキャン</button>
+  <div id="homeTitle">ARフォトフレーム</div>
+  <div id="homeSub">下のボタンを押してARマーカーをスキャンしてください。</div>
+  <button id="scanBtn">ARマーカーをスキャン</button>
 </div>
 
 <button id="captureBtn">📸 撮影</button>
-
+<button id="shareBtn">📤 もう一度共有する</button>
 <div id="flash"></div>
 
 <script>
 /* ---------- CONFIG ---------- */
 const DATA = [
-{frame:"./samurai-frame1.png", name:"Samurai"},
-{frame:"./ninja-frame2.png", name:"Shadow-Ninja"},
-{frame:"./idol-frame3.png", name:"Sakura-Idol"},
-{frame:"./mecha-frame4.png", name:"Mecha-Bot"},
-{frame:"./kitsune-frame5.png", name:"Kitsune-Spirit"},
-{frame:"./dragon-frame6.png", name:"Dragon-Knight"},
-{frame:"./water-frame7.png", name:"Water-Mage"}
+  {frame:"./samurai-frame1.png", name:"Samurai"},
+  {frame:"./ninja-frame2.png", name:"Shadow-Ninja"},
+  {frame:"./idol-frame3.png", name:"Sakura-Idol"},
+  {frame:"./mecha-frame4.png", name:"Mecha-Bot"},
+  {frame:"./kitsune-frame5.png", name:"Kitsune-Spirit"},
+  {frame:"./dragon-frame6.png", name:"Dragon-Knight"},
+  {frame:"./water-frame7.png", name:"Water-Mage"}
 ];
-
 const TARGETS_FILE = "./targets.mind";
-/* ---------------------------- */
 
+/* ---------------------------- */
 const container = document.getElementById("ar-container");
 const statusEl = document.getElementById("status");
 const home = document.getElementById("home");
 const scanBtn = document.getElementById("scanBtn");
 const captureBtn = document.getElementById("captureBtn");
+const shareBtn = document.getElementById("shareBtn");
 
 let mode = "home";
 let busy = false;
 let currentIndex = -1;
-
 let mindarThree = null;
 let renderer = null;
 let scene = null;
 let camera = null;
-
 let selfieStream = null;
 let selfieVideo = null;
 let frameOverlay = null;
 let frameBitmap = null;
+let lastDataUrl = null;
+let lastFileName = null;
 
 scanBtn.addEventListener("click", startScanner);
 captureBtn.addEventListener("click", takePhoto);
+shareBtn.addEventListener("click", shareLastPhoto);
 
 /* ---------- HELPERS ---------- */
-
 function setStatus(t){
-statusEl.textContent = t;
+  statusEl.textContent = t;
 }
 
 function showHome(){
-home.style.display = "flex";
-captureBtn.style.display = "none";
-mode = "home";
-setStatus("準備完了");
+  home.style.display = "flex";
+  captureBtn.style.display = "none";
+  shareBtn.style.display = "none";
+  mode = "home";
+  setStatus("準備完了");
 }
 
 function hideHome(){
-home.style.display = "none";
+  home.style.display = "none";
 }
 
 function flash(){
-const el = document.getElementById("flash");
-el.style.transition = "none";
-el.style.opacity = "0.95";
-setTimeout(()=>{
-el.style.transition = "opacity .35s ease";
-el.style.opacity = "0";
-},40);
+  const el = document.getElementById("flash");
+  el.style.transition = "none";
+  el.style.opacity = "0.95";
+  setTimeout(() => {
+    el.style.transition = "opacity .35s ease";
+    el.style.opacity = "0";
+  }, 40);
 }
 
 function clearContainer(){
-container.innerHTML = "";
+  container.innerHTML = "";
 }
 
 async function stopTracks(stream){
-if(stream){
-stream.getTracks().forEach(t=>t.stop());
-}
+  if(stream){
+    stream.getTracks().forEach(t => t.stop());
+  }
 }
 
 function safeName(name){
-return name.replace(/[^\w\-]/g,"");
+  return name.replace(/[^\w\-]/g, "");
 }
 
-function downloadFile(dataUrl,fileName){
-const a = document.createElement("a");
-a.href = dataUrl;
-a.download = fileName;
-document.body.appendChild(a);
-a.click();
-a.remove();
+function downloadFile(dataUrl, fileName){
+  const a = document.createElement("a");
+  a.href = dataUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 async function loadFrameWithTransparency(src){
-const response = await fetch(src);
-const blob = await response.blob();
-return await createImageBitmap(blob);
+  const response = await fetch(src);
+  const blob = await response.blob();
+  return await createImageBitmap(blob);
 }
 
 /* ---------- SCANNER ---------- */
-
 async function startScanner(){
+  hideHome();
+  mode = "scanner";
+  busy = false;
+  currentIndex = -1;
+  await cleanupSelfie();
+  await cleanupScanner();
+  clearContainer();
 
-hideHome();
+  try{
+    setStatus("背面カメラを起動しています...");
+    mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      container: container,
+      imageTargetSrc: TARGETS_FILE,
+      uiScanning: false,
+      uiLoading: false,
+      uiError: false,
+      maxTrack: 1
+    });
 
-mode = "scanner";
-busy = false;
-currentIndex = -1;
+    renderer = mindarThree.renderer;
+    scene = mindarThree.scene;
+    camera = mindarThree.camera;
 
-await cleanupSelfie();
-await cleanupScanner();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.1));
 
-clearContainer();
+    for(let i = 0; i < 7; i++){
+      const anchor = mindarThree.addAnchor(i);
+      anchor.onTargetFound = () => {
+        if(mode !== "scanner") return;
+        if(busy) return;
+        busy = true;
+        currentIndex = i;
+        setTimeout(() => openSelfie(i), 220);
+      };
+    }
 
-try{
+    await mindarThree.start();
+    renderer.setAnimationLoop(() => {
+      renderer.render(scene, camera);
+    });
 
-setStatus("背面カメラを起動しています...");
-
-mindarThree = new window.MINDAR.IMAGE.MindARThree({
-container: container,
-imageTargetSrc: TARGETS_FILE,
-uiScanning:false,
-uiLoading:false,
-uiError:false,
-maxTrack:1
-});
-
-renderer = mindarThree.renderer;
-scene = mindarThree.scene;
-camera = mindarThree.camera;
-
-renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-renderer.setSize(innerWidth,innerHeight);
-
-scene.add(new THREE.HemisphereLight(0xffffff,0xbbbbff,1.1));
-
-for(let i=0;i<7;i++){
-
-const anchor = mindarThree.addAnchor(i);
-
-anchor.onTargetFound = ()=>{
-
-if(mode !== "scanner") return;
-if(busy) return;
-
-busy = true;
-currentIndex = i;
-
-setTimeout(()=>{
-openSelfie(i);
-},220);
-
-};
-
-}
-
-await mindarThree.start();
-
-renderer.setAnimationLoop(()=>{
-renderer.render(scene,camera);
-});
-
-setStatus("ARマーカーをカメラに映してください");
-
-}catch(err){
-
-console.error(err);
-setStatus("カメラを起動できませんでした");
-showHome();
-
-}
+    setStatus("ARマーカーをカメラに映してください");
+  }catch(err){
+    console.error(err);
+    setStatus("カメラを起動できませんでした");
+    showHome();
+  }
 }
 
 async function cleanupScanner(){
-
-try{
-if(mindarThree) await mindarThree.stop();
-}catch(e){}
-
-try{
-if(renderer) renderer.setAnimationLoop(null);
-}catch(e){}
-
-mindarThree = null;
-renderer = null;
-scene = null;
-camera = null;
+  try{ if(mindarThree) await mindarThree.stop(); }catch(e){}
+  try{ if(renderer) renderer.setAnimationLoop(null); }catch(e){}
+  mindarThree = null;
+  renderer = null;
+  scene = null;
+  camera = null;
 }
 
 /* ---------- SELFIE ---------- */
-
 async function openSelfie(index){
+  mode = "selfie";
+  await cleanupScanner();
+  clearContainer();
 
-mode = "selfie";
+  try{
+    setStatus("前面カメラを起動しています...");
+    selfieStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "user" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    });
 
-await cleanupScanner();
-clearContainer();
+    selfieVideo = document.createElement("video");
+    selfieVideo.autoplay = true;
+    selfieVideo.muted = true;
+    selfieVideo.playsInline = true;
+    selfieVideo.srcObject = selfieStream;
 
-try{
+    Object.assign(selfieVideo.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100vw",
+      height: "100dvh",
+      objectFit: "cover"
+    });
 
-setStatus("前面カメラを起動しています...");
+    container.appendChild(selfieVideo);
+    await selfieVideo.play();
 
-selfieStream = await navigator.mediaDevices.getUserMedia({
-video:{
-facingMode:{ideal:"user"},
-width:{ideal:1280},
-height:{ideal:720}
-},
-audio:false
-});
+    frameOverlay = document.createElement("img");
+    frameOverlay.src = DATA[index].frame;
+    Object.assign(frameOverlay.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      width: "100vw",
+      height: "100dvh",
+      objectFit: "fill",
+      pointerEvents: "none",
+      zIndex: "40",
+      background: "transparent"
+    });
+    container.appendChild(frameOverlay);
 
-selfieVideo = document.createElement("video");
-selfieVideo.autoplay = true;
-selfieVideo.muted = true;
-selfieVideo.playsInline = true;
-selfieVideo.srcObject = selfieStream;
+    frameBitmap = await loadFrameWithTransparency(DATA[index].frame);
 
-Object.assign(selfieVideo.style,{
-position:"fixed",
-top:"0",
-left:"0",
-width:"100vw",
-height:"100dvh",
-objectFit:"cover"
-});
-
-container.appendChild(selfieVideo);
-await selfieVideo.play();
-
-frameOverlay = document.createElement("img");
-frameOverlay.src = DATA[index].frame;
-
-Object.assign(frameOverlay.style,{
-position:"fixed",
-top:"0",
-left:"0",
-width:"100vw",
-height:"100dvh",
-objectFit:"fill",
-pointerEvents:"none",
-zIndex:"40",
-background:"transparent"
-});
-
-container.appendChild(frameOverlay);
-
-frameBitmap = await loadFrameWithTransparency(DATA[index].frame);
-
-captureBtn.style.display = "block";
-setStatus("撮影できます");
-
-}catch(err){
-
-console.error(err);
-setStatus("前面カメラを起動できませんでした");
-showHome();
-
-}
+    captureBtn.style.display = "block";
+    setStatus("準備完了\n画面をタップして撮影してください");
+  }catch(err){
+    console.error(err);
+    setStatus("前面カメラを起動できませんでした");
+    showHome();
+  }
 }
 
 async function cleanupSelfie(){
-
-captureBtn.style.display = "none";
-
-if(selfieVideo){
-try{selfieVideo.pause();}catch(e){}
-}
-
-await stopTracks(selfieStream);
-
-selfieStream = null;
-selfieVideo = null;
-frameOverlay = null;
-frameBitmap = null;
+  captureBtn.style.display = "none";
+  shareBtn.style.display = "none";
+  if(selfieVideo) try{ selfieVideo.pause(); }catch(e){}
+  await stopTracks(selfieStream);
+  selfieStream = null;
+  selfieVideo = null;
+  frameOverlay = null;
+  frameBitmap = null;
 }
 
 /* ---------- PHOTO ---------- */
-
 async function takePhoto(){
+  if(mode !== "selfie" || !selfieVideo) return;
 
-if(mode !== "selfie") return;
-if(!selfieVideo) return;
+  captureBtn.disabled = true;
+  flash();
 
-captureBtn.disabled = true;
+  try{
+    const w = selfieVideo.videoWidth || 1280;
+    const h = selfieVideo.videoHeight || 720;
 
-flash();
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
 
-try{
+    ctx.drawImage(selfieVideo, 0, 0, w, h);
+    if(frameBitmap){
+      ctx.drawImage(frameBitmap, 0, 0, w, h);
+    }
 
-const w = selfieVideo.videoWidth || 1280;
-const h = selfieVideo.videoHeight || 720;
+    lastDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    lastFileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
-const canvas = document.createElement("canvas");
-canvas.width = w;
-canvas.height = h;
+    const blob = await fetch(lastDataUrl).then(res => res.blob());
+    const file = new File([blob], lastFileName, { type: "image/jpeg" });
 
-const ctx = canvas.getContext("2d");
-ctx.clearRect(0,0,w,h);
+    // Web Share API（iOSで最も使いやすい方法）
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: DATA[currentIndex].name,
+        text: "ARフォトフレームで撮影しました！"
+      });
 
-ctx.drawImage(selfieVideo,0,0,w,h);
+      setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
+    } 
+    else {
+      // Fallback: ダウンロード
+      downloadFile(lastDataUrl, lastFileName);
+      setStatus("写真をDownloadsに保存しました\n\n写真を開いて「共有」→「写真に保存」をタップしてください");
+    }
 
-if(frameBitmap){
-ctx.drawImage(frameBitmap,0,0,w,h);
+    shareBtn.style.display = "block";
+
+  } catch(err){
+    console.error(err);
+    if(lastDataUrl){
+      downloadFile(lastDataUrl, lastFileName);
+    }
+    setStatus("写真を保存しました\nDownloadsフォルダから「写真に保存」してください");
+    shareBtn.style.display = "block";
+  }
+
+  setTimeout(() => {
+    captureBtn.disabled = false;
+  }, 800);
 }
 
-const dataUrl = canvas.toDataURL("image/jpeg",0.95);
+/* ---------- もう一度共有 ---------- */
+async function shareLastPhoto(){
+  if(!lastDataUrl || !lastFileName) return;
 
-const fileName = safeName(DATA[currentIndex].name) + ".jpg";
+  try{
+    const blob = await fetch(lastDataUrl).then(res => res.blob());
+    const file = new File([blob], lastFileName, { type: "image/jpeg" });
 
-downloadFile(dataUrl,fileName);
-
-setStatus("保存しました");
-
-}catch(err){
-
-console.error(err);
-setStatus("保存に失敗しました");
-
+    await navigator.share({
+      files: [file],
+      title: DATA[currentIndex].name,
+      text: "ARフォトフレームで撮影しました！"
+    });
+  } catch(e){
+    // ユーザーがキャンセルした場合など
+    downloadFile(lastDataUrl, lastFileName);
+  }
 }
 
-setTimeout(async ()=>{
-captureBtn.disabled = false;
-await cleanupSelfie();
-showHome();
-},900);
-
+/* ---------- クリーンアップ ---------- */
+async function cleanupScanner(){
+  try{ if(mindarThree) await mindarThree.stop(); }catch(e){}
+  try{ if(renderer) renderer.setAnimationLoop(null); }catch(e){}
+  mindarThree = null;
+  renderer = null;
+  scene = null;
+  camera = null;
 }
 
-window.addEventListener("resize",()=>{
-if(renderer){
-renderer.setSize(innerWidth,innerHeight);
-}
+window.addEventListener("resize", () => {
+  if(renderer){
+    renderer.setSize(innerWidth, innerHeight);
+  }
 });
 </script>
-
 </body>
 </html>
