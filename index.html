@@ -27,6 +27,20 @@ height:100%;
 overflow:hidden;
 }
 
+#loading{
+position:fixed;
+inset:0;
+background:#000;
+color:#fff;
+display:flex;
+align-items:center;
+justify-content:center;
+z-index:100;
+font-size:18px;
+text-align:center;
+padding:20px;
+}
+
 #title{
 position:fixed;
 top:14px;
@@ -70,20 +84,6 @@ background:linear-gradient(135deg,#ff5ca9,#ff84d2);
 box-shadow:0 8px 20px rgba(0,0,0,.28);
 }
 
-#loading{
-position:fixed;
-inset:0;
-background:#000;
-color:#fff;
-display:flex;
-align-items:center;
-justify-content:center;
-z-index:99;
-font-size:18px;
-text-align:center;
-padding:20px;
-}
-
 #flash{
 position:fixed;
 inset:0;
@@ -98,7 +98,6 @@ z-index:200;
 <body>
 
 <div id="ar-container"></div>
-
 <div id="loading">Opening Camera...</div>
 <div id="flash"></div>
 
@@ -113,11 +112,19 @@ let renderer, scene, camera, mascot;
 window.addEventListener("load", startAR);
 
 async function startAR(){
+
 try{
+
+/* verify files */
+const t1 = await fetch("./targets.mind");
+if(!t1.ok) throw new Error("targets.mind not found");
+
+const t2 = await fetch("./anime-mascot.png");
+if(!t2.ok) throw new Error("anime-mascot.png not found");
 
 const mindarThree = new window.MINDAR.IMAGE.MindARThree({
 container: document.querySelector("#ar-container"),
-imageTargetSrc:"./targets.mind",
+imageTargetSrc: "./targets.mind",
 uiScanning:false,
 uiLoading:false,
 uiError:false
@@ -172,16 +179,19 @@ renderer.render(scene,camera);
 
 }catch(error){
 
-document.getElementById("loading").innerHTML =
-"Failed to start AR.<br>Check camera permission.";
-
 console.error(error);
+
+document.getElementById("loading").innerHTML =
+"Failed to start AR<br><br>" +
+(error.message || "Unknown Error");
 
 }
 }
 
 function flashEffect(){
+
 const flash = document.getElementById("flash");
+
 flash.style.transition = "none";
 flash.style.opacity = "0.95";
 
@@ -189,54 +199,47 @@ setTimeout(()=>{
 flash.style.transition = "opacity .35s ease";
 flash.style.opacity = "0";
 },40);
-}
 
-function isIOS(){
-return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function dataURLtoFile(dataurl, filename){
-const arr = dataurl.split(',');
-const mime = arr[0].match(/:(.*?);/)[1];
-const bstr = atob(arr[1]);
-let n = bstr.length;
-const u8arr = new Uint8Array(n);
-
-while(n--){
-u8arr[n] = bstr.charCodeAt(n);
-}
-
-return new File([u8arr], filename, {type:mime});
 }
 
 async function saveImage(dataUrl){
 
-/* iPhone / iPad */
-if(isIOS() && navigator.canShare && navigator.share){
-
 try{
-const file = dataURLtoFile(dataUrl,"ar-photo.jpg");
 
-if(navigator.canShare({files:[file]})){
+if(navigator.share){
+
+const response = await fetch(dataUrl);
+const blob = await response.blob();
+
+const file = new File(
+[blob],
+"ar-photo.jpg",
+{type:"image/jpeg"}
+);
+
 await navigator.share({
 files:[file],
-title:"AR Photo",
-text:"Save Photo"
+title:"AR Photo"
 });
+
 return;
 }
-}catch(e){}
+
+}catch(e){
+console.log(e);
 }
 
-/* fallback Android/Desktop */
+/* fallback */
 const link = document.createElement("a");
-link.download = "ar-photo.jpg";
 link.href = dataUrl;
+link.download = "ar-photo.jpg";
 link.click();
+
 }
 
 async function takePhoto(){
+
+if(!renderer) return;
 
 flashEffect();
 
@@ -259,14 +262,17 @@ ctx.drawImage(glCanvas,0,0,output.width,output.height);
 const dataUrl = output.toDataURL("image/jpeg",0.95);
 
 await saveImage(dataUrl);
+
 }
 
 document.getElementById("captureBtn").addEventListener("click", takePhoto);
 
 window.addEventListener("resize",()=>{
+
 if(renderer){
 renderer.setSize(window.innerWidth,window.innerHeight);
 }
+
 });
 </script>
 
