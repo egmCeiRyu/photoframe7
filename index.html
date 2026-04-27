@@ -7,30 +7,175 @@
 <script src="https://unpkg.com/three@0.150.1/build/three.min.js"></script>
 <script src="https://unpkg.com/mind-ar@1.1.4/dist/mindar-image-three.prod.js"></script>
 <style>
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-#ar-container{position:fixed;inset:0;background:#000;}
-#home{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:24px;background:#000;z-index:60;}
-#homeTitle{color:#fff;font-size:30px;font-weight:700;text-align:center;}
-#homeSub{color:#fff;font-size:15px;text-align:center;line-height:1.45;max-width:320px;opacity:.92;}
-#scanBtn,#captureBtn{border:none;border-radius:18px;padding:16px 28px;font-size:20px;font-weight:700;background:#ff5ca9;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.25);}
-#captureBtn{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:80;display:none;}
-#title{position:fixed;top:12px;left:0;width:100%;text-align:center;color:#fff;font-size:22px;font-weight:700;z-index:30;text-shadow:0 2px 8px rgba(0,0,0,.7);pointer-events:none;}
-#status{position:fixed;top:46px;left:0;width:100%;text-align:center;color:#fff;font-size:14px;z-index:30;text-shadow:0 2px 8px rgba(0,0,0,.7);padding:0 12px;box-sizing:border-box;pointer-events:none;white-space:pre-line;line-height:1.45;}
-#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;}
+:root {
+  --pink: #ff2e9a;
+  --purple: #9b4dff;
+  --neon: #00f5ff;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a0a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: white;
+}
+
+#ar-container {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+
+#title {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, var(--pink), var(--neon));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  z-index: 50;
+  text-shadow: 0 0 20px rgba(255, 46, 154, 0.5);
+}
+
+#status {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.5;
+  z-index: 50;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+  white-space: pre-line;
+}
+
+/* Home Screen - Modern Design */
+#home {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  background: radial-gradient(circle at center, rgba(155,77,255,0.15), transparent 70%);
+  z-index: 60;
+}
+
+#homeTitle {
+  font-size: 42px;
+  font-weight: 800;
+  background: linear-gradient(90deg, #ff2e9a, #9b4dff, #00f5ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+  letter-spacing: 3px;
+}
+
+#homeSub {
+  font-size: 16px;
+  max-width: 280px;
+  text-align: center;
+  opacity: 0.85;
+  line-height: 1.6;
+}
+
+/* Botões Modernos */
+button {
+  border: none;
+  border-radius: 50px;
+  padding: 16px 40px;
+  font-size: 19px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+
+#scanBtn {
+  background: linear-gradient(45deg, var(--pink), var(--purple));
+  color: white;
+}
+
+#scanBtn:active {
+  transform: scale(0.95);
+  box-shadow: 0 5px 15px rgba(255,46,154,0.6);
+}
+
+#captureBtn {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: white;
+  color: #000;
+  font-size: 36px;
+  display: none;
+  z-index: 80;
+  box-shadow: 0 0 40px rgba(255,46,154,0.8);
+  border: 6px solid #fff;
+}
+
+#captureBtn:active {
+  transform: translateX(-50%) scale(0.9);
+}
+
+#returnBtn {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(20px);
+  color: white;
+  padding: 14px 32px;
+  font-size: 16px;
+  border: 1px solid rgba(255,255,255,0.3);
+  display: none;
+  z-index: 85;
+}
+
+#returnBtn:active {
+  background: rgba(255,255,255,0.3);
+}
+
+/* Flash Effect */
+#flash {
+  position: fixed;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 100;
+  transition: opacity 0.25s ease;
+}
 </style>
 </head>
 <body>
 <div id="ar-container"></div>
-<div id="title">ARフォトフレーム</div>
+<div id="title">AR PHOTO BOOTH</div>
 <div id="status">準備完了</div>
 
 <div id="home">
   <div id="homeTitle">ARフォトフレーム</div>
-  <div id="homeSub">下のボタンを押してARマーカーをスキャンしてください。</div>
+  <div id="homeSub">マーカーをスキャンして<br>特別な写真を撮ろう</div>
   <button id="scanBtn">ARマーカーをスキャン</button>
 </div>
 
-<button id="captureBtn">📸 撮影</button>
+<button id="captureBtn">📸</button>
+<button id="returnBtn">← もう一度スキャンする</button>
 <div id="flash"></div>
 
 <script>
@@ -52,6 +197,7 @@ const statusEl = document.getElementById("status");
 const home = document.getElementById("home");
 const scanBtn = document.getElementById("scanBtn");
 const captureBtn = document.getElementById("captureBtn");
+const returnBtn = document.getElementById("returnBtn");
 
 let mode = "home";
 let busy = false;
@@ -67,22 +213,29 @@ let frameBitmap = null;
 
 scanBtn.addEventListener("click", startScanner);
 captureBtn.addEventListener("click", takePhoto);
+returnBtn.addEventListener("click", returnToScan);
 
 /* ---------- HELPERS ---------- */
 function setStatus(t){ statusEl.textContent = t; }
+
 function showHome(){
   home.style.display = "flex";
   captureBtn.style.display = "none";
+  returnBtn.style.display = "none";
   mode = "home";
   setStatus("準備完了");
 }
+
 function hideHome(){ home.style.display = "none"; }
 
 function flash(){
   const el = document.getElementById("flash");
   el.style.transition = "none";
-  el.style.opacity = "0.95";
-  setTimeout(() => { el.style.transition = "opacity .35s ease"; el.style.opacity = "0"; }, 30);
+  el.style.opacity = "0.85";
+  setTimeout(() => {
+    el.style.transition = "opacity 0.4s ease";
+    el.style.opacity = "0";
+  }, 50);
 }
 
 function clearContainer(){ container.innerHTML = ""; }
@@ -108,7 +261,7 @@ async function loadFrameWithTransparency(src){
   return await createImageBitmap(blob);
 }
 
-/* ---------- SCANNER & SELFIE ---------- */
+/* ---------- SCANNER ---------- */
 async function startScanner(){
   hideHome();
   mode = "scanner";
@@ -142,7 +295,7 @@ async function startScanner(){
         if(mode !== "scanner" || busy) return;
         busy = true;
         currentIndex = i;
-        setTimeout(() => openSelfie(i), 220);
+        setTimeout(() => openSelfie(i), 250);
       };
     }
 
@@ -162,6 +315,7 @@ async function cleanupScanner(){
   mindarThree = renderer = scene = camera = null;
 }
 
+/* ---------- SELFIE ---------- */
 async function openSelfie(index){
   mode = "selfie";
   await cleanupScanner();
@@ -179,38 +333,44 @@ async function openSelfie(index){
     selfieVideo.muted = true;
     selfieVideo.playsInline = true;
     selfieVideo.srcObject = selfieStream;
-    Object.assign(selfieVideo.style, {position:"fixed",top:"0",left:"0",width:"100vw",height:"100dvh",objectFit:"cover"});
+    Object.assign(selfieVideo.style, {
+      position:"fixed", top:"0", left:"0", width:"100vw", height:"100dvh", objectFit:"cover"
+    });
     container.appendChild(selfieVideo);
     await selfieVideo.play();
 
     frameOverlay = document.createElement("img");
     frameOverlay.src = DATA[index].frame;
-    Object.assign(frameOverlay.style, {position:"fixed",top:"0",left:"0",width:"100vw",height:"100dvh",objectFit:"fill",pointerEvents:"none",zIndex:"40"});
+    Object.assign(frameOverlay.style, {
+      position:"fixed", top:"0", left:"0", width:"100vw", height:"100dvh", 
+      objectFit:"fill", pointerEvents:"none", zIndex:"40"
+    });
     container.appendChild(frameOverlay);
 
     frameBitmap = await loadFrameWithTransparency(DATA[index].frame);
 
     captureBtn.style.display = "block";
-    setStatus("準備完了\n画面をタップして撮影してください");
+    setStatus("タップして撮影");
   }catch(err){
     console.error(err);
-    setStatus("前面カメラを起動できませんでした");
+    setStatus("カメラを起動できませんでした");
     showHome();
   }
 }
 
 async function cleanupSelfie(){
   captureBtn.style.display = "none";
+  returnBtn.style.display = "none";
   if(selfieVideo) try{selfieVideo.pause();}catch(e){}
   await stopTracks(selfieStream);
   selfieStream = selfieVideo = frameOverlay = frameBitmap = null;
 }
 
-/* ---------- FOTO - Delay mínimo ---------- */
+/* ---------- FOTO ---------- */
 async function takePhoto(){
   if(mode !== "selfie" || !selfieVideo) return;
 
-  captureBtn.disabled = true;
+  captureBtn.style.transform = "translateX(-50%) scale(0.85)";
   flash();
 
   try{
@@ -232,32 +392,32 @@ async function takePhoto(){
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
-        await navigator.share({
-          files: [file],
-          title: DATA[currentIndex].name,
-          text: "ARフォトフレームで撮影しました！"
-        });
-        setStatus("共有メニューが開きました\n「写真に保存」を選択してください");
+        await navigator.share({ files: [file], title: DATA[currentIndex].name });
       } catch (e) {
         downloadFile(dataUrl, fileName);
-        setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップしてください");
       }
     } else {
       downloadFile(dataUrl, fileName);
-      setStatus("写真をDownloadsに保存しました\n写真を開いて「共有」→「写真に保存」をタップしてください");
     }
+
+    setStatus("保存完了！\n写真をダウンロードしました");
 
   } catch(err){
     console.error(err);
-    setStatus("写真を保存しました");
+    setStatus("保存に失敗しました");
   }
 
-  // Delay mínimo (1.8 segundos) - o mais rápido possível sem quebrar a experiência
+  // Mostra botão de retorno
   setTimeout(() => {
-    cleanupSelfie();
-    showHome();
-    captureBtn.disabled = false;
-  }, 1800);
+    returnBtn.style.display = "block";
+    captureBtn.style.transform = "translateX(-50%) scale(1)";
+  }, 600);
+}
+
+/* ---------- Voltar ao escaneamento ---------- */
+function returnToScan(){
+  cleanupSelfie();
+  showHome();
 }
 
 /* ---------- Resize ---------- */
