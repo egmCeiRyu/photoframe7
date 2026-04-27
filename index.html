@@ -18,20 +18,6 @@ html, body {
 
 #ar-container { position: fixed; inset: 0; background: #000; }
 
-/* Status */
-#status {
-  position: fixed;
-  top: 65px;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  font-size: 15.5px;
-  line-height: 1.5;
-  z-index: 50;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.9);
-  white-space: pre-line;
-}
-
 /* Home Screen */
 #home {
   position: fixed;
@@ -52,7 +38,6 @@ html, body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   text-align: center;
-  letter-spacing: 1px;
 }
 
 #homeSub {
@@ -60,7 +45,6 @@ html, body {
   max-width: 290px;
   text-align: center;
   opacity: 0.9;
-  line-height: 1.6;
 }
 
 /* Bottom Bar */
@@ -125,7 +109,6 @@ html, body {
 </head>
 <body>
 <div id="ar-container"></div>
-<div id="status">準備完了</div>
 
 <div id="home">
   <div id="homeTitle">ARフォトフレーム</div>
@@ -137,12 +120,10 @@ html, body {
 <div class="bottom-bar" id="bottomBar" style="display:none;">
   <div class="btn" id="returnBtn">
     <div class="btn-circle">↺</div>
-    <div>RETORNAR</div>
   </div>
   
   <div class="btn" id="captureBtn">
     <div class="btn-circle">📸</div>
-    <div>TIRAR FOTO</div>
   </div>
 </div>
 
@@ -163,7 +144,6 @@ const TARGETS_FILE = "./targets.mind";
 
 /* Elements */
 const container = document.getElementById("ar-container");
-const statusEl = document.getElementById("status");
 const home = document.getElementById("home");
 const scanBtn = document.getElementById("scanBtn");
 const bottomBar = document.getElementById("bottomBar");
@@ -187,13 +167,10 @@ captureBtn.addEventListener("click", takePhoto);
 returnBtn.addEventListener("click", returnToScan);
 
 /* ---------- HELPERS ---------- */
-function setStatus(t){ statusEl.textContent = t; }
-
 function showHome(){
   home.style.display = "flex";
   bottomBar.style.display = "none";
   mode = "home";
-  setStatus("準備完了");
 }
 
 function hideHome(){ home.style.display = "none"; }
@@ -239,7 +216,6 @@ async function startScanner(){
   clearContainer();
 
   try{
-    setStatus("背面カメラを起動しています...");
     mindarThree = new window.MINDAR.IMAGE.MindARThree({
       container: container,
       imageTargetSrc: TARGETS_FILE,
@@ -268,10 +244,8 @@ async function startScanner(){
 
     await mindarThree.start();
     renderer.setAnimationLoop(() => renderer.render(scene, camera));
-    setStatus("ARマーカーをカメラに映してください");
   }catch(err){
     console.error(err);
-    setStatus("カメラを起動できませんでした");
     showHome();
   }
 }
@@ -289,7 +263,6 @@ async function openSelfie(index){
   clearContainer();
 
   try{
-    setStatus("前面カメラを起動しています...");
     selfieStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "user" }, width: { ideal: 1280 }, height: { ideal: 720 } },
       audio: false
@@ -312,10 +285,8 @@ async function openSelfie(index){
     frameBitmap = await loadFrameWithTransparency(DATA[index].frame);
 
     bottomBar.style.display = "flex";
-    setStatus("タップして撮影してください");
   }catch(err){
     console.error(err);
-    setStatus("前面カメラを起動できませんでした");
     showHome();
   }
 }
@@ -347,12 +318,28 @@ async function takePhoto(){
     const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
     const fileName = safeName(DATA[currentIndex].name) + "_" + Date.now() + ".jpg";
 
-    downloadFile(dataUrl, fileName);
-    setStatus("✅ 写真を保存しました！");
+    const blob = await fetch(dataUrl).then(r => r.blob());
+    const file = new File([blob], fileName, { type: "image/jpeg" });
+
+    // Tenta abrir menu de salvar/compartilhar
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: DATA[currentIndex].name,
+          text: "ARフォトフレームで撮影しました"
+        });
+      } catch (e) {
+        downloadFile(dataUrl, fileName);
+      }
+    } else {
+      downloadFile(dataUrl, fileName);
+    }
 
   } catch(err){
     console.error(err);
-    setStatus("保存に失敗しました");
+    // Fallback
+    if (dataUrl) downloadFile(dataUrl, fileName || "photo.jpg");
   }
 }
 
